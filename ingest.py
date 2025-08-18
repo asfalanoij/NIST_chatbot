@@ -1,88 +1,157 @@
 import os
-from pathlib import Path
+from typing import List, Tuple
 from dotenv import load_dotenv
 
+import streamlit as st
+from langchain_community.vectorstores import FAISS
+from langchain_google_genai import (
+    GoogleGenerativeAIEmbeddings,
+    ChatGoogleGenerativeAI,
+)
+
+# ------------------------
+# Init & Config
+# ------------------------
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-assert GOOGLE_API_KEY, "Set GOOGLE_API_KEY (env or .env)"
+assert GOOGLE_API_KEY, "Set GOOGLE_API_KEY (env or .env). Do NOT commit secrets."
 
-# 1) Load PDFs with metadata (file + page)
-from langchain_community.document_loaders import PyMuPDFLoader
+st.set_page_config(page_title="NIST 800-53r5 / CSF 2.0 Chatbot", page_icon="🛡️")
+st.title("🛡️ NIST 800-53r5 / CSF 2.0 RAG Chatbot (FAISS)")
+st.markdown(
+    """
+    This private chatbot answers questions **only** from your local PDFs: **NIST SP 800-53 Rev. 5** (security & privacy control catalog) and, if provided, **NIST CSF 2.0** (risk/governance framework). They are **related but distinct**: CSF 2.0 provides Functions/Categories/Outcomes, while 800-53r5 provides detailed controls you can map to those outcomes.
 
-DOCS_DIR = Path("docs")
-pdf_paths = sorted(p for p in DOCS_DIR.glob("*.pdf"))
-assert pdf_paths, f"No PDFs found in {DOCS_DIR.resolve()}"
+    **How to use**
+    1. Put the PDFs in `./docs/` (e.g., `nist_80053r5.pdf`, `NIST_CSF_2.0.pdf`).
+    2. Run `python ingest.py` to (re)build the FAISS index.
+    3. Ask your question below. The bot cites chunk IDs and shows file/page info in the context panel.
 
-print("PDFs found:")
-for p in pdf_paths:
-    print(" -", p.name)
+    **Scope**: Security & privacy controls (SP 800-53r5) and CSF 2.0 Functions/Categories (including **Govern**). If a question is outside this scope, you'll see *No relevant context found.*
 
-docs = []
-for p in pdf_paths:
-    loader = PyMuPDFLoader(str(p))
-    docs.extend(loader.load())
-
-from collections import Counter
-_counts = Counter([d.metadata.get("source", "unknown") for d in docs])
-for fname, cnt in _counts.items():
-    print(f"Loaded {cnt} pages from {Path(fname).name if isinstance(fname, str) else fname}")
-
-print(f"Loaded pages: {len(docs)}")
-
-# 2) Chunk (sane defaults)
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000, chunk_overlap=150,
-    separators=["\n\n", "\n", " ", ""]
-)
-chunks = splitter.split_documents(docs)
-print("Chunks before dedupe:", len(chunks))
-
-# 3) Drop duplicate/empty chunks (policy PDFs repeat a lot)
-def _normalize(t: str) -> str:
-    return " ".join(t.split())
-
-seen, uniq = set(), []
-for d in chunks:
-    txt = _normalize(d.page_content)
-    if len(txt) < 40:  # skip tiny noise
-        continue
-    if txt in seen:
-        continue
-    seen.add(txt)
-    uniq.append(d)
-
-chunks = uniq
-print("Unique chunks:", len(chunks))
-
-# 4) Embeddings (Google) + cache (so re-runs are instant)
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain.embeddings import CacheBackedEmbeddings
-from langchain.storage import LocalFileStore
-
-base_embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
-cache = LocalFileStore("emb_cache")
-embeddings = CacheBackedEmbeddings.from_bytes_store(base_embeddings, cache)
-
-# 5) Build FAISS and persist
-import faiss
-from langchain_community.vectorstores import FAISS
-from langchain_community.docstore.in_memory import InMemoryDocstore
-
-# Determine dimension once via a probe
-probe = embeddings.embed_query("sanity")
-dim = len(probe)
-index = faiss.IndexFlatL2(dim)
-
-vs = FAISS(
-    embedding_function=embeddings,
-    index=index,
-    docstore=InMemoryDocstore(),
-    index_to_docstore_id={}
+    **Privacy/Security**: Your PDFs stay local. Only small retrieved snippets are sent to the LLM for answering — never the full documents.
+    """
 )
 
-vs.add_documents(chunks)
-Path("index_kms").mkdir(exist_ok=True)
-vs.save_local("index_kms")
-print("✅ Built & saved FAISS to ./index_kms (with cached embeddings).")
+# ------------------------
+# Caching: load once, reuse
+# ------------------------
+@st.cache_resource(show_spinner=False)
+def get_embeddings() -> GoogleGenerativeAIEmbeddings:
+    return GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+
+@st.cache_resource(show_spinner=True)
+def get_vectorstore() -> FAISS:
+    emb = get_embeddings()
+    # allow_dangerous_deserialization is required for FAISS load
+    return FAISS.load_local("index_kms", emb, allow_dangerous_deserialization=True)
+
+@st.cache_resource(show_spinner=False)
+def get_llm(temperature: float) -> ChatGoogleGenerativeAI:
+    return ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=temperature)
+
+SYSTEM_PROMPT = (
+    "You are a concise security/compliance assistant. Answer using ONLY the provided context "
+    "from NIST SP 800-53 Rev. 5 and/or NIST CSF 2.0. If the context is insufficient, reply: "
+    "'No relevant context found.' Keep answers factual and cite the source IDs like [1], [2]."
+)
+
+# ------------------------
+# Sidebar controls
+# ------------------------
+with st.sidebar:
+    st.subheader("Settings")
+    top_k: int = st.slider("Top-K chunks", 2, 12, 6)
+    st.caption("Number of chunks retrieved. Higher = more context, slower, and sometimes less focused.")
+
+    temperature: float = st.slider("Temperature", 0.0, 1.0, 0.2, 0.1)
+    st.caption("Output randomness. 0 = deterministic; higher = more creative but less consistent.")
+
+    min_score: float = st.slider("Min similarity (0-1)", 0.0, 1.0, 0.0, 0.05)
+    st.caption("Similarity threshold for retrieved chunks. 1.0 = only very close matches; lower = more lenient.")
+
+    with st.sidebar.expander("ℹ️ Help", expanded=False):
+        st.write("Re-run `python ingest.py` after you add/replace PDFs in `./docs/`. Use a slightly higher Top-K (6–8) for broad questions.")
+
+# ------------------------
+# Retrieval + Answer
+# ------------------------
+
+def build_context_blocks(hits) -> List[str]:
+    blocks: List[str] = []
+    for i, (doc, score) in enumerate(hits, 1):
+        src = doc.metadata.get("source", "unknown")
+        page = doc.metadata.get("page", "n/a")
+        txt = doc.page_content.strip()
+        if not txt:
+            continue
+        blocks.append(f"[{i}] ({src}, p.{page})\n{txt}")
+    return blocks
+
+
+def truncate_tokens(text: str, max_chars: int = 6000) -> str:
+    return text if len(text) <= max_chars else text[:max_chars]
+
+
+def answer_query(q: str, k: int, temp: float, min_sim: float) -> Tuple[str, List[Tuple]]:
+    vs = get_vectorstore()
+    raw_hits = vs.similarity_search_with_score(q, k=max(k, 8))  # grab a few extra for filtering
+
+    # Convert FAISS distance to a pseudo-similarity score
+    filtered = []
+    for doc, dist in raw_hits:
+        sim = 1.0 / (1.0 + float(dist))
+        if sim >= min_sim:
+            filtered.append((doc, dist))
+
+    if not filtered:
+        return "No relevant context found.", []
+
+    hits = filtered[:k]
+    ctx_blocks = build_context_blocks(hits)
+    context = truncate_tokens("\n\n".join(ctx_blocks))
+
+    llm = get_llm(temp)
+    prompt = (
+        f"{SYSTEM_PROMPT}\n\n"
+        f"Question: {q}\n\n"
+        f"Context:\n{context}\n\n"
+        f"Instructions: cite sources in-line using the IDs in brackets."
+    )
+
+    out = llm.invoke(prompt).content
+    return str(out), hits
+
+# ------------------------
+# UI
+# ------------------------
+q = st.text_input("Ask a question (e.g., 'Which 800-53r5 families cover access control, and how do they align to CSF Protect?')")
+if q:
+    with st.spinner("Retrieving…"):
+        ans, hits = answer_query(q.strip(), top_k, temperature, min_score)
+    st.markdown("### Answer")
+    st.write(ans)
+
+    if hits:
+        st.markdown("---")
+        st.markdown("#### Retrieved context")
+        for i, (doc, dist) in enumerate(hits, 1):
+            src = doc.metadata.get("source", "unknown")
+            page = doc.metadata.get("page", "n/a")
+            sim = 1.0 / (1.0 + float(dist))
+            with st.expander(f"[{i}] {src}, page {page}  ·  similarity≈{sim:.3f}"):
+                st.write(doc.page_content)
+
+with st.expander("💡 Starter questions (NIST 800-53r5 + CSF 2.0)", expanded=False):
+    st.markdown(
+        """
+1. **Govern (GV)** → Map CSF 2.0 **Govern** outcomes to **NIST 800-53r5** control families; give 2–3 exemplar controls per outcome.
+2. **Protect (PR)** → For a **FIPS 199 Moderate** system, prioritize **AC/IA/SC** controls and justify via **CSF Protect** categories.
+3. **Govern/Identify (GV + ID)** → Draft a **POA&M** template aligning **CA/RA** controls to **CSF Govern/Identify**; list minimum evidence fields.
+4. **Respond (RS)** → Outline an **IR playbook** linking **CSF Respond** categories to **IR controls** (IR-4, IR-5, IR-8).
+5. **Detect/Recover (DE + RC)** → Build an **evidence checklist** for **CM/CP/AU** and show how it supports **CSF Detect/Recover**.
+        """
+    )
+
+st.markdown("---")
+st.markdown("<div style='text-align:center;color:grey'>rudyprasetiya.com | 2025</div>", unsafe_allow_html=True)

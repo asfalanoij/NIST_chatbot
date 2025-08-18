@@ -6,3 +6,7 @@ PyMuPDF>=1.24.7
 langchain-google-genai>=2.0.1
 langgraph>=0.2.26
 python-dotenv>=1.0.1
+streamlit>=1.36.0
+
+google-generativeai==0.8.5
+google-ai-generativelanguage==0.6.15
