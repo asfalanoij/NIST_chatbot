@@ -1,0 +1,19 @@
+# secrets & cache
+.env
+emb_cache/
+index_kms/
+*.faiss
+*.bin
+*.pkl
+*.log
+*.lock
+
+# python
+__pycache__/
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# vscode (keep local)
+.vscode/
