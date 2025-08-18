@@ -17,3 +17,17 @@ __pycache__/
 
 # vscode (keep local)
 .vscode/
+
+# Ignore environment & secrets
+.env
+
+# Ignore experimental notebooks
+4_1_RAG_Llama*.ipynb
+rag.ipynb
+rag_01.ipynb
+
+# Ignore rag test directory
+rag/
+
+# Ignore system files
+.DS_Store
