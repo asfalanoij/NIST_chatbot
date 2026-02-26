@@ -1,238 +1,162 @@
-# 🛡️ NIST 800-53 Knowledge Management System
+# NIST 800-53 Compliance Chatbot v02
 
-> A private, intelligent chatbot designed to help teams understand and navigate NIST SP 800-53 Rev. 5 security controls and NIST Cybersecurity Framework 2.0.
+**An agentic, RAG-powered chatbot that makes NIST RMF and SP 800-53 accessible.**
 
-## 🎯 Purpose
+Built to solve a real pain point: organizations struggle to understand, implement, and audit NIST security controls. This chatbot routes your question to the right specialist agent and answers using your actual compliance documents.
 
-This Knowledge Management System transforms complex NIST documentation into an accessible, conversational interface. Built for cybersecurity professionals, compliance teams, and anyone working with NIST frameworks, it provides instant, contextual answers to your security control questions without sending sensitive data to external services.
+> Privacy-first. Runs 100% locally via Ollama. Optional Gemini cloud fallback.
 
-**What makes this special:**
-- 🔒 **Privacy-first**: Your PDFs stay local—only small retrieved snippets are sent to the LLM
-- 🎯 **NIST-focused**: Specialized for SP 800-53r5 security controls and CSF 2.0 framework
-- 📚 **Context-aware**: Provides source citations with page numbers for verification
-- ⚡ **RAG-powered**: Uses Retrieval-Augmented Generation for accurate, grounded responses
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.9+
-- Google AI API key ([Get one here](https://aistudio.google.com/app/apikey))
-- NIST PDF documents (SP 800-53 Rev. 5, CSF 2.0, etc.)
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/asfalanoij/NIST_chatbot.git
-   cd NIST_chatbot
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Set up your API key**
-   
-   Create a `.env` file in the project root:
-   ```env
-   GOOGLE_API_KEY=your_google_api_key_here
-   ```
-
-4. **Add your NIST documents**
-   
-   Place your PDF files in the `./docs/` directory:
-   ```
-   docs/
-   ├── nist_80053r5.pdf          # NIST SP 800-53 Rev. 5
-   ├── NIST_CSF_2.0.pdf          # NIST Cybersecurity Framework 2.0
-   ├── fedramp.pdf               # FedRAMP documentation (optional)
-   └── incidentresponseforwindows.pdf  # Additional resources (optional)
-   ```
-
-5. **Build the knowledge base**
-   ```bash
-   python ingest.py
-   ```
-   *This processes your PDFs and creates a searchable FAISS vector index*
-
-6. **Launch the chatbot**
-   ```bash
-   streamlit run app.py
-   ```
-
-Your NIST Knowledge Management System will be available at `http://localhost:8501`
-
-## 💡 How It Works
-
-### The Architecture
-
-```mermaid
-graph LR
-    A[PDF Documents] --> B[Document Ingestion]
-    B --> C[Text Chunking]
-    C --> D[Embeddings Generation]
-    D --> E[FAISS Vector Store]
-    F[User Question] --> G[Similarity Search]
-    G --> E
-    E --> H[Retrieved Context]
-    H --> I[Google GenAI LLM]
-    I --> J[Contextual Answer]
-```
-
-### Technology Stack
-
-- **🌐 Frontend**: [Streamlit](https://streamlit.io/) - Clean, interactive web interface
-- **🔗 RAG Framework**: [LangChain](https://python.langchain.com/) - Orchestrates the retrieval-augmented generation pipeline
-- **🔍 Vector Search**: [FAISS](https://faiss.ai/) - Fast similarity search for finding relevant document chunks
-- **📄 PDF Processing**: [PyMuPDF](https://pymupdf.readthedocs.io/) - Extracts text from PDF documents
-- **🤖 AI Model**: [Google Generative AI](https://ai.google.dev/) - Powers embeddings and chat completions
-- **🔧 Utilities**: python-dotenv for environment management
-
-## 🎭 Usage Examples
-
-### Getting Started Questions
-
-Try these sample queries to explore the system:
-
-**1. Governance & CSF 2.0 Mapping**
-```
-Map CSF 2.0 Govern outcomes to NIST 800-53r5 control families; give 2–3 exemplar controls per outcome.
-```
-
-**2. System-Specific Controls**
-```
-For a FIPS 199 Moderate system, prioritize AC/IA/SC controls and justify via CSF Protect categories.
-```
-
-**3. Implementation Planning**
-```
-Draft a POA&M template aligning CA/RA controls to CSF Govern/Identify; list minimum evidence fields.
-```
-
-**4. Incident Response**
-```
-Outline an IR playbook linking CSF Respond categories to IR controls (IR-4, IR-5, IR-8).
-```
-
-**5. Evidence & Compliance**
-```
-Build an evidence checklist for CM/CP/AU and show how it supports CSF Detect/Recover.
-```
-
-### Understanding the Responses
-
-Each answer includes:
-- **Source Citations**: References like `[1]`, `[2]` that link to specific document chunks
-- **Page Numbers**: Exact page references for verification
-- **Similarity Scores**: Confidence indicators for retrieved content
-- **Expandable Context**: Click to see the full text chunks used
-
-## ⚙️ Configuration Options
-
-### Streamlit Interface Controls
-
-- **Top-K Chunks** (2-12): Number of document chunks to retrieve
-  - Higher = more context but slower responses
-  - Recommended: 6-8 for broad questions, 3-4 for specific ones
-
-- **Temperature** (0.0-1.0): Response creativity/randomness
-  - 0.0 = Deterministic, factual
-  - 0.2 = Slightly varied (recommended)
-  - 1.0 = Most creative but less consistent
-
-- **Minimum Similarity** (0.0-1.0): Quality threshold for retrieved chunks
-  - 1.0 = Only very close matches
-  - 0.0 = More lenient matching
-  - Recommended: 0.0-0.3 for exploratory questions
-
-### Re-indexing Your Documents
-
-After adding or updating PDFs in `./docs/`:
-```bash
-python ingest.py
-```
-
-This rebuilds the FAISS index with your new content.
-
-## 📁 Project Structure
-
-```
-NIST_chatbot/
-├── app.py                    # Main Streamlit application
-├── ingest.py                 # PDF processing and indexing script
-├── requirements.txt          # Python dependencies
-├── .env                     # API keys (create this)
-├── .gitignore              # Version control exclusions
-├── docs/                   # PDF documents directory
-│   ├── nist_80053r5.pdf
-│   ├── NIST_CSF_2.0.pdf
-│   └── ...
-├── index_kms/              # FAISS vector index (auto-generated)
-├── emb_cache/             # Embedding cache (auto-generated)
-└── rag-mvp/               # Development artifacts
-```
-
-## 🔐 Privacy & Security
-
-**Your data stays private:**
-- ✅ PDF documents are processed locally
-- ✅ Only small, relevant text chunks are sent to the LLM
-- ✅ No full documents leave your machine
-- ✅ API keys are stored in local `.env` files
-- ❌ Never commit secrets to version control
-
-**Best practices:**
-- Keep your `.env` file local and never commit it
-- Regularly review which PDFs you're ingesting
-- Use specific questions for more targeted, secure responses
-
-## 🛠️ Troubleshooting
-
-### Common Issues
-
-**"No relevant context found"**
-- Your question might be outside the scope of ingested documents
-- Try lowering the minimum similarity threshold
-- Ensure PDFs are properly placed in `./docs/` and indexed
-
-**"Set GOOGLE_API_KEY" error**
-- Create `.env` file with your Google AI API key
-- Verify the key is active and has proper quotas
-
-**Slow responses**
-- Reduce Top-K chunks (try 3-4 instead of 6-8)
-- Check your internet connection for API calls
-- Consider the size of your document collection
-
-**Index not found**
-- Run `python ingest.py` to build the initial index
-- Check that PDFs exist in the `./docs/` directory
-
-### Getting Help
-
-Having issues? Check that:
-1. All dependencies are installed (`pip install -r requirements.txt`)
-2. Your Google API key is valid and properly set
-3. PDFs are in the correct directory and readable
-4. You've run the ingestion script at least once
-
-## 🎉 What's Next?
-
-This Knowledge Management System is designed to grow with your needs:
-
-- **Add more documents**: Drop new PDFs into `./docs/` and re-index
-- **Customize prompts**: Modify the system prompt in `app.py` for specific use cases
-- **Extend coverage**: Include additional NIST publications, industry frameworks
-- **Team deployment**: Deploy on internal networks for team-wide access
-
-## 👨‍💻 About
-
-**Created by:** Rudy Prasetiya, SST, MA, MSE, CDSP, CC  
-**Website:** [rudyprasetiya.com](https://rudyprasetiya.com)  
-**Year:** 2025
+**Author**: [Rudy Prasetiya](https://rudyprasetiya.com)
 
 ---
 
-*Making NIST 800-53 accessible to everyone in your organization* 🚀
+## Architecture
+
+```
+User Question
+     |
+     v
+ [Orchestrator] --LLM routing + keyword fallback-->
+     |
+     +--> NIST Controls Specialist    (800-53 Rev.5, RMF lifecycle)
+     +--> Audit & Assessment Agent    (evidence, test procedures, POA&Ms)
+     +--> Risk & Impact Agent         (FIPS 199, CIA triad, tailoring)
+     +--> Compliance Mapping Agent    (FedRAMP, CMMC, ISO 27001, SOC 2)
+     +--> Product Manager Agent       (roadmaps, prioritization, business value)
+     |
+     v
+ [RAG Engine] --> FAISS vector store --> LLM (Ollama/Gemini) --> Answer + Citations
+```
+
+| Layer | Stack |
+|-------|-------|
+| Frontend | React 19, Vite 7, TypeScript, Tailwind CSS v4, Lucide Icons |
+| Backend | Python 3.12, Flask, LangChain, FAISS |
+| LLM | Ollama (llama3, local) or Gemini 2.0 Flash (cloud fallback) |
+| Retrieval | PDF ingestion, recursive chunking (2000 tokens, 300 overlap), NIST-aware separators |
+
+## Key Features
+
+- **5 Specialist Runtime Agents** — Automatic routing to the right expert based on your question
+- **8 Build-Time Agents** — QA inspection, security scanning, maturity tracking, and more via `./antigravity.sh`
+- **RAG with Citations** — Every answer cites the source document and page number
+- **Gemini Fallback** — Automatically uses Google Gemini if `GEMINI_API_KEY` is set, otherwise Ollama
+- **Visitor Tracking** — SQLite-based visitor counter with `/api/visitors/count` endpoint
+- **NIST-Aware Chunking** — Splitting strategy preserves control family context
+- **Security Hardened** — CORS origin-locked, env-based config, no hardcoded secrets
+- **26 Backend Tests** — Full pytest suite for API, agents, and RAG engine
+- **Quick-Start Prompts** — Pre-built queries for common compliance questions
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+ & npm
+- Python 3.10+
+- [Ollama](https://ollama.com) installed and running
+
+```bash
+# Pull an LLM model
+ollama pull llama3
+ollama serve
+```
+
+### Setup & Run
+
+```bash
+# 1. Copy environment config
+cp .env.example .env
+# Edit .env — add GEMINI_API_KEY if you want cloud fallback
+
+# 2. Backend
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 3. Ingest your NIST documents (place PDFs in docs/)
+python ingest.py
+
+# 4. Start backend (port 5050)
+python app.py
+
+# 5. Frontend (new terminal)
+cd frontend
+npm install
+npm run dev
+# Open http://localhost:5173
+```
+
+Or use the Makefile:
+
+```bash
+make setup         # Install both backend & frontend deps
+make ingest        # Process PDFs into vector index
+make start-backend
+make start-frontend
+make test          # Run all tests
+make qa            # Run 16-point quality inspection
+make scan          # Run security scan
+make maturity      # Check project maturity %
+```
+
+## Build Agents (AntiGravity System)
+
+8 build-time agents for development quality assurance:
+
+```bash
+./agenticAI_skills/antigravity.sh help     # List all agents
+./agenticAI_skills/antigravity.sh qa inspect         # 16-point quality check
+./agenticAI_skills/antigravity.sh devsecops scan     # Security scan
+./agenticAI_skills/antigravity.sh nist-expert validate  # RAG coverage check
+./agenticAI_skills/antigravity.sh data-scientist profile  # Embedding stats
+./agenticAI_skills/antigravity.sh pm maturity        # Project maturity %
+./agenticAI_skills/antigravity.sh e2e-test run       # Run all tests
+./agenticAI_skills/antigravity.sh context-optimizer report  # Token analysis
+./agenticAI_skills/antigravity.sh visitor-tracker status    # Visitor health
+```
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check + active LLM backend |
+| `/api/chat` | POST | Route question to specialist agent |
+| `/api/ingest` | POST | Trigger PDF ingestion |
+| `/api/visitors/count` | GET | Unique visitors & total visits |
+
+## Gemini Fallback
+
+To use Google Gemini instead of local Ollama:
+
+1. Get an API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+2. Add to your `.env`: `GEMINI_API_KEY=your_key_here`
+3. Restart the backend — it auto-detects and uses Gemini
+
+## Testing
+
+```bash
+# Backend tests
+cd backend && source venv/bin/activate && pytest tests/ -v
+
+# Frontend build check
+cd frontend && npm run build
+
+# Full test suite
+make test
+```
+
+## Knowledge Base
+
+Place PDF files in `docs/` at the project root:
+
+| Document | Purpose |
+|----------|---------|
+| `nist_80053r5.pdf` | SP 800-53 Rev.5 control catalog |
+| `nist_1362.pdf` | NIST SP 1362 supplemental guidance |
+| `fedramp.pdf` | FedRAMP authorization requirements |
+| `incidentresponseforwindows.pdf` | IR procedures reference |
+
+---
+
+**License**: MIT

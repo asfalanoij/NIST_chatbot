@@ -1,5 +1,14 @@
-# secrets & cache
+# Virtual environments
+venv/
+backend/venv/
+.venv/
+
+# Node
+node_modules/
+
+# Secrets & cache
 .env
+.env.local
 emb_cache/
 index_kms/
 *.faiss
@@ -7,27 +16,35 @@ index_kms/
 *.pkl
 *.log
 *.lock
+*.db
 
-# python
+# Agent logs
+agenticAI_skills/.logs/
+
+# Local docs (not for GitHub)
+README_local.md
+
+# Python
 __pycache__/
+*.pyc
 .ipynb_checkpoints/
 
 # macOS
 .DS_Store
 
-# vscode (keep local)
+# IDE
 .vscode/
+.idea/
+.mcp.json
 
-# Ignore environment & secrets
-.env
+# Build output
+dist/
+build/
 
-# Ignore experimental notebooks
+# Experimental notebooks
 4_1_RAG_Llama*.ipynb
 rag.ipynb
 rag_01.ipynb
 
-# Ignore rag test directory
+# Legacy
 rag/
-
-# Ignore system files
-.DS_Store
