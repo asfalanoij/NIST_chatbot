@@ -48,9 +48,7 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://nist-chatbot-api.onrender.com
-      - key: VITE_API_KEY
-        sync: false
+        value: https://80053-api.rudyprasetiya.com
 
 databases:
   - name: nist-chatbot-db
