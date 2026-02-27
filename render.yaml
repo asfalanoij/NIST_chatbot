@@ -6,7 +6,7 @@ services:
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
     region: oregon
-    plan: starter
+    plan: free
     branch: main
     healthCheckPath: /api/health
     envVars:
