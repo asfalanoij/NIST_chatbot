@@ -1,0 +1,16 @@
+flask==3.1.3
+flask-cors==6.0.2
+python-dotenv==1.2.1
+langchain==1.2.10
+langchain-community==0.4.1
+langchain-core==1.2.13
+langchain-text-splitters==1.1.0
+langchain-ollama==1.0.1
+langchain-google-genai==4.2.0
+faiss-cpu==1.13.2
+pypdf==6.7.3
+tiktoken==0.12.0
+werkzeug==3.1.6
+gunicorn==25.1.0
+psycopg2-binary==2.9.11
+flask-limiter==4.1.1
