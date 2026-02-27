@@ -30,8 +30,6 @@ services:
         value: "true"
       - key: PORT
         value: "5050"
-    customDomains:
-      - domain: 80053-api.rudyprasetiya.com
 
   # Frontend — static site
   - type: web
@@ -51,8 +49,6 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://80053-api.rudyprasetiya.com
-    customDomains:
-      - domain: 80053.rudyprasetiya.com
 
 databases:
   - name: nist-chatbot-db
