@@ -1,13 +1,19 @@
+import logging
 from functools import wraps
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import os
 from dotenv import load_dotenv
 
+logger = logging.getLogger(__name__)
+
 from agents import Orchestrator
 from ingest import ingest_documents
-from visitor_tracker import track_visit, get_visitor_counts
+from visitor_tracker import track_visit, get_visitor_counts, check_db_health
 from rag_engine import get_llm_backend_name
+from crossmap import get_crossmap, get_families, get_stats, generate_sankey_csv
 
 load_dotenv()
 
@@ -19,6 +25,19 @@ CORS(app, origins=[o.strip() for o in cors_origins.split(",")])
 
 # Flask config from env
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-me")
+
+# Rate limiting — protects Gemini API costs
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri="memory://",
+)
+
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return jsonify({"error": "Rate limit exceeded. Please try again later.", "retry_after": e.description}), 429
 
 # Initialize Orchestrator
 orchestrator = Orchestrator()
@@ -51,14 +70,29 @@ def track_visitor():
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
+    db_ok = check_db_health()
+    faiss_ok = os.path.exists(orchestrator.rag_engine.index_path)
+
+    if db_ok and faiss_ok:
+        status = "healthy"
+        code = 200
+    else:
+        status = "degraded"
+        code = 200  # still 200 so load balancers don't kill the service
+
     return jsonify({
-        "status": "healthy",
+        "status": status,
         "service": "nist-chatbot-orchestrator",
         "llm_backend": get_llm_backend_name(),
-    }), 200
+        "checks": {
+            "database": "ok" if db_ok else "unavailable",
+            "faiss_index": "ok" if faiss_ok else "missing",
+        },
+    }), code
 
 
 @app.route('/api/chat', methods=['POST'])
+@limiter.limit("10/minute")
 @require_api_key
 def chat():
     data = request.json
@@ -75,19 +109,22 @@ def chat():
         response = orchestrator.route_and_chat(question, history)
         return jsonify(response)
     except Exception as e:
-        print(f"Error processing chat: {e}")
+        logger.warning("Error processing chat: %s", e)
         return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/ingest', methods=['POST'])
+@limiter.limit("5/minute")
 @require_api_key
 def run_ingest():
     """Triggers the ingestion process for documents in the docs/ folder."""
+    if os.environ.get("DISABLE_INGEST", "").lower() == "true":
+        return jsonify({"error": "Ingestion is disabled in production."}), 403
     try:
         stats = ingest_documents()
         return jsonify({"status": "success", "stats": stats}), 200
     except Exception as e:
-        print(f"Error during ingestion: {e}")
+        logger.warning("Error during ingestion: %s", e)
         return jsonify({"error": str(e)}), 500
 
 
@@ -99,6 +136,44 @@ def visitor_count():
         return jsonify(counts), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# --- Cross-Mapping Endpoints ---
+
+@app.route('/api/crossmap', methods=['GET'])
+def crossmap():
+    """Return NIST 800-53 cross-mapping to ISO 27001, CSF 2.0, ISO 27005.
+    Query params: family, nist_id, framework
+    """
+    family = request.args.get('family')
+    nist_id = request.args.get('nist_id')
+    framework = request.args.get('framework')
+
+    data = get_crossmap(family=family, nist_id=nist_id, framework=framework)
+    return jsonify({"mappings": data, "count": len(data)}), 200
+
+
+@app.route('/api/crossmap/families', methods=['GET'])
+def crossmap_families():
+    """Return available NIST control families in the mapping."""
+    return jsonify({"families": get_families()}), 200
+
+
+@app.route('/api/crossmap/stats', methods=['GET'])
+def crossmap_stats():
+    """Return summary statistics about cross-mapping coverage."""
+    return jsonify(get_stats()), 200
+
+
+@app.route('/api/crossmap/sankey', methods=['GET'])
+def crossmap_sankey():
+    """Return Sankey diagram CSV (source,target,value) for download."""
+    csv_data = generate_sankey_csv()
+    return Response(
+        csv_data,
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=nist_crossmap_sankey.csv'},
+    )
 
 
 if __name__ == '__main__':

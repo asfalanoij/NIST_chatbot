@@ -76,7 +76,7 @@ class TestOrchestratorRouting:
         mock_get_llm.return_value = mock_llm
         orch = Orchestrator()
         result = orch._keyword_route("What is AC-2?")
-        assert result == "NIST_SPECIALIST"
+        assert result == ""  # no keyword match → empty, LLM router decides
 
     @patch("agents.get_llm")
     @patch("agents.RAGEngine")

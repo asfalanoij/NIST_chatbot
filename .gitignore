@@ -12,7 +12,6 @@ node_modules/
 emb_cache/
 index_kms/
 *.faiss
-*.bin
 *.pkl
 *.log
 *.lock

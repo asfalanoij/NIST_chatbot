@@ -1,7 +1,10 @@
+import logging
 from typing import Dict, Any, List
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from rag_engine import RAGEngine, get_llm
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------
 # Agent Personas — 7 Specialists (Pareto Optimum)
@@ -124,34 +127,37 @@ class Orchestrator:
             )),
             ("human", "{question}"),
         ])
+        # Cache the router chain — no need to rebuild per request
+        self._route_chain = self.router_prompt | self.router_llm | StrOutputParser()
 
     def _keyword_route(self, question: str) -> str:
         q_lower = question.lower()
         for agent_key, keywords in ROUTE_KEYWORDS.items():
             if any(kw in q_lower for kw in keywords):
                 return agent_key
-        return "NIST_SPECIALIST"
+        return ""
 
     def route_and_chat(self, question: str, history: List[Dict[str, str]] = None) -> Dict[str, Any]:
-        # 1. Route: try LLM, fall back to keyword matching
-        try:
-            route_chain = self.router_prompt | self.router_llm | StrOutputParser()
-            chosen_agent = route_chain.invoke({"question": question}).strip()
+        # 1. Route: keyword-first (saves an LLM call ~70% of the time)
+        chosen_agent = self._keyword_route(question)
 
-            # Clean LLM output
-            matched = False
-            for agent_key in self.valid_agents:
-                if agent_key in chosen_agent:
-                    chosen_agent = agent_key
-                    matched = True
-                    break
-            if not matched:
-                chosen_agent = self._keyword_route(question)
-        except Exception:
-            chosen_agent = self._keyword_route(question)
+        if not chosen_agent:
+            # No keyword match — use LLM router
+            try:
+                raw = self._route_chain.invoke({"question": question}).strip()
+                matched = False
+                for agent_key in self.valid_agents:
+                    if agent_key in raw:
+                        chosen_agent = agent_key
+                        matched = True
+                        break
+                if not matched:
+                    chosen_agent = "NIST_SPECIALIST"
+            except Exception:
+                chosen_agent = "NIST_SPECIALIST"
 
         agent_config = AGENTS[chosen_agent]
-        print(f"  Routed -> {agent_config['name']}")
+        logger.info("Routed -> %s", agent_config['name'])
 
         # 2. Execute RAG with the chosen persona
         response = self.rag_engine.chat(

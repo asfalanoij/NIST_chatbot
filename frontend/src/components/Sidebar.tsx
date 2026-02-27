@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { ShieldCheck, FileText, Cloud, Info, ChevronDown, ChevronRight } from 'lucide-react';
+import { ShieldCheck, FileText, Cloud, Info, ChevronDown, ChevronRight, BarChart3 } from 'lucide-react';
 import { SPECIALIST_AGENTS, KNOWLEDGE_BASE } from '../constants';
 import ProjectInsightsModal from './ProjectInsightsModal';
+import CrossMapModal from './CrossMapModal';
 
 const KB_ICONS: Record<string, { icon: React.ElementType; color: string }> = {
     kb1: { icon: ShieldCheck, color: '#5D5CDE' },
@@ -18,6 +19,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
     const [hoveredAgent, setHoveredAgent] = useState<{ id: string; name: string; description: string; icon: string; details: string[]; top: number } | null>(null);
     const [insightsOpen, setInsightsOpen] = useState(false);
+    const [crossMapOpen, setCrossMapOpen] = useState(false);
     const [isAgentsOpen, setIsAgentsOpen] = useState(false);
     return (
         <aside className={`${collapsed ? 'w-20' : 'w-72'} transition-all duration-500 bg-[url('/image/sea_bg03.jpg')] bg-cover bg-center flex flex-col border-r border-white/20 h-screen relative z-50`}>
@@ -88,6 +90,22 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
                         </p>
                         {!collapsed && <Info className="w-3 h-3 text-slate-600 group-hover:text-brand-purple transition-colors" />}
                     </button>
+                </div>
+
+                {/* Cross-Mapping */}
+                <div className="mb-8">
+                    <button
+                        onClick={() => setCrossMapOpen(true)}
+                        className={`w-full flex items-center ${collapsed ? 'justify-center' : 'justify-between'} group`}
+                    >
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-800 group-hover:text-brand-cyan transition-colors">
+                            Cross-Mapping
+                        </p>
+                        {!collapsed && <BarChart3 className="w-3 h-3 text-slate-600 group-hover:text-brand-cyan transition-colors" />}
+                    </button>
+                    {!collapsed && (
+                        <p className="text-[9px] text-slate-600 mt-1 font-medium">ISO 27001 &bull; CSF 2.0 &bull; ISO 27005</p>
+                    )}
                 </div>
 
                 {/* Specialist Agents - NOW LAST */}
@@ -208,6 +226,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
 
             {/* Project Insights Modal */}
             <ProjectInsightsModal isOpen={insightsOpen} onClose={() => setInsightsOpen(false)} />
+            <CrossMapModal isOpen={crossMapOpen} onClose={() => setCrossMapOpen(false)} />
         </aside>
     );
 };

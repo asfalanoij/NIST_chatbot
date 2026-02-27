@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Shield, Menu, Sparkles, BookOpen, AlertTriangle, ClipboardCheck, GitBranch, Target, Users } from 'lucide-react'
 import MessageBubble from './MessageBubble'
+import { API_BASE } from '../config'
 
 interface Message {
     role: 'user' | 'assistant';
@@ -32,14 +33,14 @@ export default function ChatLayout() {
     }, [messages])
 
     useEffect(() => {
-        fetch('http://localhost:5051/api/visitors/count')
+        fetch(`${API_BASE}/api/visitors/count`)
             .then(res => res.json())
             .then(data => setVisitorCount(data.unique_visitors))
             .catch(() => { })
     }, [messages.length])
 
     useEffect(() => {
-        fetch('http://localhost:5051/api/health')
+        fetch(`${API_BASE}/api/health`)
             .then(res => res.json())
             .then(data => setLlmBackend(data.llm_backend === 'gemini' ? 'Gemini' : 'Ollama (Local)'))
             .catch(() => setLlmBackend('Offline'))
@@ -59,7 +60,7 @@ export default function ChatLayout() {
             const headers: Record<string, string> = { 'Content-Type': 'application/json' }
             if (apiKey) headers['X-API-Key'] = apiKey
 
-            const response = await fetch('http://localhost:5051/api/chat', {
+            const response = await fetch(`${API_BASE}/api/chat`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
@@ -81,7 +82,7 @@ export default function ChatLayout() {
         } catch (error) {
             setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: `Connection error. Make sure the backend is running on port 5051 and Ollama is active.\n\n\`${error instanceof Error ? error.message : 'Network error'}\``,
+                content: `Connection error. Make sure the backend is running on port 5050 and Ollama is active.\n\n\`${error instanceof Error ? error.message : 'Network error'}\``,
             }])
         } finally {
             setLoading(false)

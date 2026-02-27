@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, Shield, BookOpen, AlertTriangle, ClipboardCheck, GitBranch } from 'lucide-react';
 import MessageBubble from './MessageBubble';
+import { API_BASE } from '../config';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -32,7 +33,7 @@ const ChatInterface = (): React.ReactNode => {
     }, [messages])
 
     useEffect(() => {
-        fetch('http://localhost:5051/api/health')
+        fetch(`${API_BASE}/api/health`)
             .then(res => res.json())
             .then(data => setLlmBackend(data.llm_backend === 'gemini' ? 'Gemini' : 'Ollama'))
             .catch(() => setLlmBackend('Offline'))
@@ -50,7 +51,7 @@ const ChatInterface = (): React.ReactNode => {
             const headers: Record<string, string> = { 'Content-Type': 'application/json' }
             if (apiKey) headers['X-API-Key'] = apiKey
 
-            const response = await fetch('http://localhost:5051/api/chat', {
+            const response = await fetch(`${API_BASE}/api/chat`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
@@ -72,7 +73,7 @@ const ChatInterface = (): React.ReactNode => {
         } catch (error) {
             setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: `Connection error. Make sure the backend is running on port 5051.\n\n\`${error instanceof Error ? error.message : 'Network error'}\``,
+                content: `Connection error. Make sure the backend is running on port 5050.\n\n\`${error instanceof Error ? error.message : 'Network error'}\``,
             }])
         } finally {
             setLoading(false)
