@@ -1,9 +1,0 @@
-# requirements.txt
-langchain-community
-faiss-cpu
-langchain-google-genai
-PyMuPDF
-langchain-groq
-langgraph
-google-ai-generativelanguage==0.6.15
-python-dotenv
