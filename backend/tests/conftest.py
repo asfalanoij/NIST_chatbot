@@ -27,6 +27,11 @@ def app_client():
         "agent_name": "NIST Controls Specialist",
         "agent_id": "NIST_SPECIALIST",
     }
+    mock_orch_instance.route_and_chat_stream.return_value = iter([
+        'data: {"type": "meta", "agent_name": "NIST Controls Specialist", "agent_id": "NIST_SPECIALIST"}\n\n',
+        'data: {"chunk": "AC-2 is account management."}\n\n',
+        "data: [DONE]\n\n",
+    ])
 
     # Patch Orchestrator class so reload creates our mock instance
     mock_orch_cls = MagicMock(return_value=mock_orch_instance)
@@ -34,7 +39,7 @@ def app_client():
     with patch.dict("sys.modules", {}):
         with patch("agents.Orchestrator", mock_orch_cls), \
              patch("agents.RAGEngine", MagicMock()), \
-             patch("agents.get_llm", MagicMock()):
+             patch("agents.get_routing_llm", MagicMock()):
             import importlib
             import app as app_module
             importlib.reload(app_module)

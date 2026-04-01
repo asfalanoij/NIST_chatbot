@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat /Users/asfalanoi/app_oct2025/NIST_chatbot_v02/.claude/session-context.md | jq -Rs '{\"systemMessage\": .}'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty'); [[ \"$FILE\" == *.py ]] && cd /Users/asfalanoi/app_oct2025/NIST_chatbot_v02/backend && ./venv/bin/python -m py_compile \"$FILE\" 2>&1 || true"
+          }
+        ]
+      }
+    ]
+  }
+}

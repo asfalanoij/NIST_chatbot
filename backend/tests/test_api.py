@@ -127,3 +127,33 @@ class TestApiKeyAuth:
         with patch.dict(os.environ, {"API_KEY": "test-secret-key"}, clear=False):
             response = app_client.get("/api/visitors/count")
             assert response.status_code == 200
+
+
+class TestStreamEndpoint:
+    def test_stream_endpoint_exists(self, app_client):
+        """POST /api/chat/stream returns 200 (not 404)."""
+        response = app_client.post(
+            "/api/chat/stream",
+            data=json.dumps({"message": "What is AC-2?"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+
+    def test_stream_requires_api_key(self, app_client):
+        """Stream endpoint respects X-API-Key auth."""
+        with patch.dict(os.environ, {"API_KEY": "test-secret-key"}, clear=False):
+            response = app_client.post(
+                "/api/chat/stream",
+                data=json.dumps({"message": "What is AC-2?"}),
+                content_type="application/json",
+            )
+            assert response.status_code == 401
+
+    def test_stream_returns_event_stream_content_type(self, app_client):
+        """Stream endpoint responds with text/event-stream content type."""
+        response = app_client.post(
+            "/api/chat/stream",
+            data=json.dumps({"message": "What is AC-2?"}),
+            content_type="application/json",
+        )
+        assert "text/event-stream" in response.content_type

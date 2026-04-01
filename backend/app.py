@@ -14,6 +14,7 @@ from ingest import ingest_documents
 from visitor_tracker import track_visit, get_visitor_counts, check_db_health
 from rag_engine import get_llm_backend_name
 from crossmap import get_crossmap, get_families, get_stats, generate_sankey_csv
+from interaction_log import get_stats as get_interaction_stats
 
 load_dotenv()
 
@@ -113,6 +114,44 @@ def chat():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/chat/stream', methods=['POST'])
+@limiter.limit("10/minute")
+@require_api_key
+def chat_stream():
+    """SSE streaming endpoint for incremental answer delivery."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    question = data.get('message')
+    history = data.get('history', [])
+    session_id = request.headers.get("X-Session-ID", "")
+
+    if not question:
+        return jsonify({"error": "Message is required"}), 400
+
+    def generate():
+        try:
+            yield from orchestrator.route_and_chat_stream(
+                question=question,
+                history=history,
+                session_id=session_id,
+            )
+        except Exception as e:
+            logger.warning("Stream error: %s", e)
+            yield f"data: {{'error': '{e}'}}\n\n"
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @app.route('/api/ingest', methods=['POST'])
 @limiter.limit("5/minute")
 @require_api_key
@@ -135,6 +174,21 @@ def visitor_count():
         counts = get_visitor_counts()
         return jsonify(counts), 200
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# --- Interaction Stats Endpoint ---
+
+@app.route('/api/interactions/stats', methods=['GET'])
+@limiter.limit("60/minute")
+@require_api_key
+def interaction_stats():
+    """Return aggregate interaction quality stats (admin only)."""
+    try:
+        stats = get_interaction_stats()
+        return jsonify(stats), 200
+    except Exception as e:
+        logger.warning("Error fetching interaction stats: %s", e)
         return jsonify({"error": str(e)}), 500
 
 
