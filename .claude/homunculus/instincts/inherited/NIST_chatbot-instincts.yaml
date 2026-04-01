@@ -1,0 +1,590 @@
+# Instincts generated from https://github.com/asfalanoij/NIST_chatbot
+# Generated: 2026-04-01T17:53:25.009Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: NIST_chatbot-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Commit Length
+
+## Action
+
+Write moderate-length commit messages (~54 characters)
+
+## Evidence
+
+- Average commit message length: 54 chars
+- Based on 25 commits
+
+---
+id: NIST_chatbot-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: NIST_chatbot-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: NIST_chatbot-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Export Style
+
+## Action
+
+Prefer default exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: default
+
+---
+id: NIST_chatbot-arch-type-based
+trigger: "when adding new code"
+confidence: 0.8
+domain: architecture
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Arch Type Based
+
+## Action
+
+Place code in the appropriate type folder (components/, services/, utils/, etc.)
+
+## Evidence
+
+- Type-based module organization detected
+- Folders: 
+
+---
+id: NIST_chatbot-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: NIST_chatbot-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~8x per month
+- Files: frontend/src/components/*, frontend/src/*, **/*.test.*
+
+---
+id: NIST_chatbot-workflow-backend-feature-development-and-hardening
+trigger: "when doing backend feature development and hardening"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Workflow Backend Feature Development And Hardening
+
+## Action
+
+Follow the backend-feature-development-and-hardening workflow:
+1. Implement or update backend logic in one or more of: backend/agents.py, backend/app.py, backend/rag_engine.py, backend/interaction_log.py, backend/cache.py, backend/crossmap.py, etc.
+2. Update or add new tests in backend/tests/ (e.g., test_agents.py, test_api.py, test_cache.py, test_crossmap.py, test_schemas.py, etc.)
+3. Update backend/requirements.txt and/or backend/requirements-dev.txt if dependencies change.
+4. Update or add supporting files (e.g., schemas.py, visitor_tracker.py, Dockerfile, Procfile) as needed.
+5. If relevant, update .github/workflows/ci.yml for CI changes.
+6. Commit all changes together.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: backend/agents.py, backend/app.py, backend/rag_engine.py
+
+---
+id: NIST_chatbot-workflow-security-hardening-and-cve-patching
+trigger: "when doing security hardening and cve patching"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Workflow Security Hardening And Cve Patching
+
+## Action
+
+Follow the security-hardening-and-cve-patching workflow:
+1. Upgrade vulnerable dependencies in backend/requirements.txt (and sometimes requirements-dev.txt).
+2. Update backend/app.py to add or adjust security headers, error handling, or authentication logic.
+3. Add or update tests in backend/tests/test_api.py (or other test files) to cover security cases.
+4. Update .github/workflows/ci.yml to add or modify security scanning steps (e.g., bandit, pip-audit).
+5. Optionally add or update SECURITY.md or README.md for security policy/documentation.
+6. Commit all changes together.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: backend/requirements.txt, backend/requirements-dev.txt, backend/app.py
+
+---
+id: NIST_chatbot-workflow-deployment-config-update
+trigger: "when doing deployment config update"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Workflow Deployment Config Update
+
+## Action
+
+Follow the deployment-config-update workflow:
+1. Edit render.yaml to update deployment settings (domains, environment variables, service tier, etc.).
+2. Edit or add backend/Dockerfile or backend/Procfile if backend deployment changes are needed.
+3. Optionally update frontend or documentation files if API URLs or keys change.
+4. Commit all changes together.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: render.yaml, backend/Dockerfile, backend/Procfile
+
+---
+id: NIST_chatbot-workflow-documentation-and-guides-update
+trigger: "when doing documentation and guides update"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Workflow Documentation And Guides Update
+
+## Action
+
+Follow the documentation-and-guides-update workflow:
+1. Edit or add markdown files such as README.md, SECURITY.md, agenticAI_skills/workflows/*.md, CLAUDE.md, etc.
+2. Commit documentation changes (sometimes with co-authors).
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: README.md, SECURITY.md, agenticAI_skills/workflows/*.md
+
+---
+id: NIST_chatbot-workflow-repo-cleanup-and-legacy-removal
+trigger: "when doing repo cleanup and legacy removal"
+confidence: 0.55
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asfalanoij/NIST_chatbot
+---
+
+# NIST_chatbot Workflow Repo Cleanup And Legacy Removal
+
+## Action
+
+Follow the repo-cleanup-and-legacy-removal workflow:
+1. Delete legacy directories (e.g., legacy/, rag-mvp/, inspo_CSS_chatbot_app/).
+2. Delete root-level screenshots, notebooks, or duplicate files (e.g., requirements.txt, notes.txt).
+3. Update .gitignore if needed.
+4. Commit all removals together.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~1x per month
+- Files: legacy/, rag-mvp/, inspo_CSS_chatbot_app/
+
+---
+id: nist_chatbot-instinct-camelCase-files
+trigger: "When creating or renaming a file in the codebase"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct CamelCase Files
+
+## Action
+
+Name the file using camelCase (e.g., myModule.py)
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.files: camelCase
+
+---
+id: nist_chatbot-instinct-camelCase-functions
+trigger: "When defining a new function"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct CamelCase Functions
+
+## Action
+
+Name the function using camelCase (e.g., processInput)
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions: camelCase
+
+---
+id: nist_chatbot-instinct-pascalCase-classes
+trigger: "When defining a new class"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct PascalCase Classes
+
+## Action
+
+Name the class using PascalCase (e.g., UserSession)
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes: PascalCase
+
+---
+id: nist_chatbot-instinct-screaming-snake-constants
+trigger: "When defining a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Screaming Snake Constants
+
+## Action
+
+Name the constant using SCREAMING_SNAKE_CASE (e.g., MAX_RETRIES)
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: nist_chatbot-instinct-relative-imports
+trigger: "When importing modules within the project"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Relative Imports
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Pattern in codeStyle.importStyle: relative
+
+---
+id: nist_chatbot-instinct-default-export
+trigger: "When exporting modules or components"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Default Export
+
+## Action
+
+Use default export style
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle: default
+
+---
+id: nist_chatbot-instinct-unit-test-pattern
+trigger: "When writing tests for new or updated code"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Unit Test Pattern
+
+## Action
+
+Place unit tests in files matching *.test.ts
+
+## Evidence
+
+- Pattern in testing.filePattern: *.test.ts
+- Pattern in testing.testTypes: unit
+
+---
+id: nist_chatbot-instinct-test-backend-features
+trigger: "When adding or updating backend logic"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Test Backend Features
+
+## Action
+
+Add or update corresponding unit tests in backend/tests/ (e.g., test_agents.py, test_api.py)
+
+## Evidence
+
+- Workflow: backend-feature-development-and-hardening
+- Pattern in backend/tests/
+
+---
+id: nist_chatbot-instinct-test-security-cases
+trigger: "When applying security fixes or patches"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Test Security Cases
+
+## Action
+
+Add or update tests in backend/tests/test_api.py (or related test files) to cover security scenarios
+
+## Evidence
+
+- Workflow: security-hardening-and-cve-patching
+- Pattern in backend/tests/test_api.py
+
+---
+id: nist_chatbot-instinct-commit-prefix
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Commit Prefix
+
+## Action
+
+Start the commit message with a conventional prefix (fix, feat, chore, docs, security)
+
+## Evidence
+
+- Pattern in commits.prefixes: fix, feat, chore, docs, security
+- Examples: 'fix: point VITE_API_URL...', 'feat(v03): Phase 00-4...', 'chore: remove legacy artifacts...'
+
+---
+id: nist_chatbot-instinct-commit-length
+trigger: "When composing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Commit Length
+
+## Action
+
+Keep the commit message concise, around 54 characters on average
+
+## Evidence
+
+- Pattern in commits.averageLength: 54
+
+---
+id: nist_chatbot-instinct-backend-feature-workflow
+trigger: "When adding or hardening backend features (e.g., new agent, cache, logging, SSE endpoint)"
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Backend Feature Workflow
+
+## Action
+
+Update backend logic, add/expand tests in backend/tests/, update requirements if needed, update supporting files, and commit all changes together
+
+## Evidence
+
+- Workflow: backend-feature-development-and-hardening
+- Example commits and files in backend/agents.py, backend/app.py, backend/tests/
+
+---
+id: nist_chatbot-instinct-security-hardening-workflow
+trigger: "When patching vulnerabilities, updating dependencies for CVEs, or adding security documentation/tests"
+confidence: 0.92
+domain: workflow
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Security Hardening Workflow
+
+## Action
+
+Upgrade dependencies, update backend/app.py for security, add/update tests, update CI for security scanning, and update SECURITY.md/README.md as needed
+
+## Evidence
+
+- Workflow: security-hardening-and-cve-patching
+- Example commits and files in backend/requirements.txt, backend/app.py, backend/tests/test_api.py
+
+---
+id: nist_chatbot-instinct-deployment-config-workflow
+trigger: "When changing deployment settings, domains, or environment variables"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Deployment Config Workflow
+
+## Action
+
+Edit render.yaml, backend/Dockerfile, or backend/Procfile as needed and commit changes together
+
+## Evidence
+
+- Workflow: deployment-config-update
+- Example commits and files in render.yaml, backend/Dockerfile, backend/Procfile
+
+---
+id: nist_chatbot-instinct-docs-update-workflow
+trigger: "When adding or updating documentation, guides, or compliance policies"
+confidence: 0.85
+domain: workflow
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Docs Update Workflow
+
+## Action
+
+Edit or add markdown files (README.md, SECURITY.md, agenticAI_skills/workflows/*.md, CLAUDE.md) and commit documentation changes
+
+## Evidence
+
+- Workflow: documentation-and-guides-update
+- Example commits and files in README.md, SECURITY.md
+
+---
+id: nist_chatbot-instinct-repo-cleanup-workflow
+trigger: "When cleaning up the repository by removing unused code, legacy artifacts, or large files"
+confidence: 0.88
+domain: workflow
+source: repo-analysis
+source_repo: asfalanoij/NIST_chatbot
+---
+
+# Nist_chatbot Instinct Repo Cleanup Workflow
+
+## Action
+
+Delete legacy directories/files, update .gitignore if needed, and commit all removals together
+
+## Evidence
+
+- Workflow: repo-cleanup-and-legacy-removal
+- Example commits and files in legacy/, rag-mvp/, .gitignore
+
