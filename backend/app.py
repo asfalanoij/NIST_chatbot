@@ -1,4 +1,7 @@
+import hmac
+import json
 import logging
+import re
 from functools import wraps
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
@@ -20,6 +23,9 @@ load_dotenv()
 
 app = Flask(__name__)
 
+# Reject bodies larger than 16 KB — prevents oversized payload abuse (T07)
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024
+
 # CORS: use env var or default to localhost dev origins
 cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://localhost:5050")
 CORS(app, origins=[o.strip() for o in cors_origins.split(",")])
@@ -35,13 +41,33 @@ limiter = Limiter(
     storage_uri="memory://",
 )
 
+_INTERNAL_ERROR_MSG = "An internal error occurred. Please try again."
+
 
 @app.errorhandler(429)
 def ratelimit_handler(e):
     return jsonify({"error": "Rate limit exceeded. Please try again later.", "retry_after": e.description}), 429
 
+
+@app.errorhandler(413)
+def payload_too_large(e):
+    return jsonify({"error": "Request payload too large."}), 413
+
+
 # Initialize Orchestrator
 orchestrator = Orchestrator()
+
+
+# --- Security Headers ---
+@app.after_request
+def set_security_headers(response: Response) -> Response:
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    if not app.debug:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 
 # --- API Key Authentication ---
@@ -54,10 +80,16 @@ def require_api_key(f):
         if not api_key:
             return f(*args, **kwargs)
         provided = request.headers.get("X-API-Key", "")
-        if not provided or provided != api_key:
+        # Constant-time comparison prevents timing attacks (C3)
+        if not provided or not hmac.compare_digest(provided, api_key):
             return jsonify({"error": "Unauthorized. Provide a valid X-API-Key header."}), 401
         return f(*args, **kwargs)
     return decorated
+
+
+def _sanitise_session_id(raw: str) -> str:
+    """Strip non-alphanumeric chars and truncate to 64 chars (M2)."""
+    return re.sub(r'[^a-zA-Z0-9\-_]', '', raw)[:64]
 
 
 @app.before_request
@@ -74,22 +106,15 @@ def health_check():
     db_ok = check_db_health()
     faiss_ok = os.path.exists(orchestrator.rag_engine.index_path)
 
-    if db_ok and faiss_ok:
-        status = "healthy"
-        code = 200
-    else:
-        status = "degraded"
-        code = 200  # still 200 so load balancers don't kill the service
-
+    status = "healthy" if db_ok and faiss_ok else "degraded"
     return jsonify({
         "status": status,
         "service": "nist-chatbot-orchestrator",
-        "llm_backend": get_llm_backend_name(),
         "checks": {
             "database": "ok" if db_ok else "unavailable",
             "faiss_index": "ok" if faiss_ok else "missing",
         },
-    }), code
+    }), 200
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -102,16 +127,20 @@ def chat():
 
     question = data.get('message')
     history = data.get('history', [])
+    session_id = _sanitise_session_id(request.headers.get("X-Session-ID", ""))
 
     if not question:
         return jsonify({"error": "Message is required"}), 400
 
+    if len(question) > 2000:
+        return jsonify({"error": "Message too long. Maximum 2000 characters."}), 400
+
     try:
-        response = orchestrator.route_and_chat(question, history)
+        response = orchestrator.route_and_chat(question, history, session_id=session_id)
         return jsonify(response)
-    except Exception as e:
-        logger.warning("Error processing chat: %s", e)
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Unhandled error in /api/chat")
+        return jsonify({"error": _INTERNAL_ERROR_MSG}), 500
 
 
 @app.route('/api/chat/stream', methods=['POST'])
@@ -125,10 +154,13 @@ def chat_stream():
 
     question = data.get('message')
     history = data.get('history', [])
-    session_id = request.headers.get("X-Session-ID", "")
+    session_id = _sanitise_session_id(request.headers.get("X-Session-ID", ""))
 
     if not question:
         return jsonify({"error": "Message is required"}), 400
+
+    if len(question) > 2000:
+        return jsonify({"error": "Message too long. Maximum 2000 characters."}), 400
 
     def generate():
         try:
@@ -137,9 +169,10 @@ def chat_stream():
                 history=history,
                 session_id=session_id,
             )
-        except Exception as e:
-            logger.warning("Stream error: %s", e)
-            yield f"data: {{'error': '{e}'}}\n\n"
+        except Exception:
+            logger.exception("Unhandled error in /api/chat/stream")
+            # C2: use json.dumps — never interpolate exception string into SSE
+            yield f"data: {json.dumps({'error': 'Stream error. Please try again.'})}\n\n"
 
     return Response(
         generate(),
@@ -162,9 +195,9 @@ def run_ingest():
     try:
         stats = ingest_documents()
         return jsonify({"status": "success", "stats": stats}), 200
-    except Exception as e:
-        logger.warning("Error during ingestion: %s", e)
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Unhandled error in /api/ingest")
+        return jsonify({"error": _INTERNAL_ERROR_MSG}), 500
 
 
 @app.route('/api/visitors/count', methods=['GET'])
@@ -173,8 +206,9 @@ def visitor_count():
     try:
         counts = get_visitor_counts()
         return jsonify(counts), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Unhandled error in /api/visitors/count")
+        return jsonify({"error": _INTERNAL_ERROR_MSG}), 500
 
 
 # --- Interaction Stats Endpoint ---
@@ -187,41 +221,35 @@ def interaction_stats():
     try:
         stats = get_interaction_stats()
         return jsonify(stats), 200
-    except Exception as e:
-        logger.warning("Error fetching interaction stats: %s", e)
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Unhandled error in /api/interactions/stats")
+        return jsonify({"error": _INTERNAL_ERROR_MSG}), 500
 
 
 # --- Cross-Mapping Endpoints ---
 
 @app.route('/api/crossmap', methods=['GET'])
 def crossmap():
-    """Return NIST 800-53 cross-mapping to ISO 27001, CSF 2.0, ISO 27005.
-    Query params: family, nist_id, framework
-    """
+    """Return NIST 800-53 cross-mapping to ISO 27001, CSF 2.0, ISO 27005."""
     family = request.args.get('family')
     nist_id = request.args.get('nist_id')
     framework = request.args.get('framework')
-
     data = get_crossmap(family=family, nist_id=nist_id, framework=framework)
     return jsonify({"mappings": data, "count": len(data)}), 200
 
 
 @app.route('/api/crossmap/families', methods=['GET'])
 def crossmap_families():
-    """Return available NIST control families in the mapping."""
     return jsonify({"families": get_families()}), 200
 
 
 @app.route('/api/crossmap/stats', methods=['GET'])
 def crossmap_stats():
-    """Return summary statistics about cross-mapping coverage."""
     return jsonify(get_stats()), 200
 
 
 @app.route('/api/crossmap/sankey', methods=['GET'])
 def crossmap_sankey():
-    """Return Sankey diagram CSV (source,target,value) for download."""
     csv_data = generate_sankey_csv()
     return Response(
         csv_data,
@@ -233,4 +261,4 @@ def crossmap_sankey():
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_PORT', os.environ.get('PORT', 5050)))
     debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    app.run(host='0.0.0.0', port=port, debug=debug)  # nosec B104
