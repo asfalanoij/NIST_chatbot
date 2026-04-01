@@ -22,6 +22,7 @@ agenticAI_skills/.logs/
 
 # Local docs (not for GitHub)
 README_local.md
+CLAUDE.local.md
 
 # Python
 __pycache__/

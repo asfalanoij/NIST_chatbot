@@ -51,16 +51,16 @@ class TestKeywordRouting:
 
 
 class TestOrchestratorRouting:
-    @patch("agents.get_llm")
+    @patch("agents.get_routing_llm")
     @patch("agents.RAGEngine")
-    def test_keyword_fallback_audit(self, mock_rag, mock_get_llm):
+    def test_keyword_fallback_audit(self, mock_rag, mock_get_routing_llm):
         mock_llm = MagicMock()
-        mock_get_llm.return_value = mock_llm
+        mock_get_routing_llm.return_value = mock_llm
         orch = Orchestrator()
         result = orch._keyword_route("I need audit evidence for my assessment")
         assert result == "AUDIT_SPECIALIST"
 
-    @patch("agents.get_llm")
+    @patch("agents.get_routing_llm")
     @patch("agents.RAGEngine")
     def test_keyword_fallback_risk(self, mock_rag, mock_get_llm):
         mock_llm = MagicMock()
@@ -69,7 +69,7 @@ class TestOrchestratorRouting:
         result = orch._keyword_route("What is the risk impact of this vulnerability?")
         assert result == "RISK_SPECIALIST"
 
-    @patch("agents.get_llm")
+    @patch("agents.get_routing_llm")
     @patch("agents.RAGEngine")
     def test_keyword_fallback_default(self, mock_rag, mock_get_llm):
         mock_llm = MagicMock()
@@ -78,7 +78,7 @@ class TestOrchestratorRouting:
         result = orch._keyword_route("What is AC-2?")
         assert result == ""  # no keyword match → empty, LLM router decides
 
-    @patch("agents.get_llm")
+    @patch("agents.get_routing_llm")
     @patch("agents.RAGEngine")
     def test_keyword_fallback_pm(self, mock_rag, mock_get_llm):
         mock_llm = MagicMock()
@@ -87,7 +87,7 @@ class TestOrchestratorRouting:
         result = orch._keyword_route("Create a roadmap for our executive stakeholder")
         assert result == "PM_AGENT"
 
-    @patch("agents.get_llm")
+    @patch("agents.get_routing_llm")
     @patch("agents.RAGEngine")
     def test_keyword_fallback_compliance(self, mock_rag, mock_get_llm):
         mock_llm = MagicMock()
@@ -96,7 +96,7 @@ class TestOrchestratorRouting:
         result = orch._keyword_route("How do I map to fedramp?")
         assert result == "COMPLIANCE_SPECIALIST"
 
-    @patch("agents.get_llm")
+    @patch("agents.get_routing_llm")
     @patch("agents.RAGEngine")
     def test_keyword_fallback_qa(self, mock_rag, mock_get_llm):
         mock_llm = MagicMock()
@@ -105,7 +105,7 @@ class TestOrchestratorRouting:
         result = orch._keyword_route("Create a test case with full test coverage for validation")
         assert result == "QA_AGENT"
 
-    @patch("agents.get_llm")
+    @patch("agents.get_routing_llm")
     @patch("agents.RAGEngine")
     def test_keyword_fallback_devsecops(self, mock_rag, mock_get_llm):
         mock_llm = MagicMock()
@@ -113,3 +113,35 @@ class TestOrchestratorRouting:
         orch = Orchestrator()
         result = orch._keyword_route("How to add SAST to CI/CD pipeline?")
         assert result == "DEVSECOPS_AGENT"
+
+
+class TestRoutingLLM:
+    def test_routing_llm_requires_gemini_key(self, monkeypatch):
+        """get_routing_llm() raises EnvironmentError when GEMINI_API_KEY is absent."""
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        from rag_engine import get_routing_llm
+        with pytest.raises(EnvironmentError, match="GEMINI_API_KEY"):
+            get_routing_llm()
+
+    def test_routing_llm_returns_gemini_when_key_set(self, monkeypatch):
+        """get_routing_llm() returns a Gemini LLM when GEMINI_API_KEY is set."""
+        monkeypatch.setenv("GEMINI_API_KEY", "fake-key-for-testing")
+        mock_gemini_cls = MagicMock()
+        mock_instance = MagicMock()
+        mock_gemini_cls.return_value = mock_instance
+        with patch("rag_engine.ChatGoogleGenerativeAI", mock_gemini_cls, create=True):
+            # Need to re-import get_routing_llm to pick up the patch
+            import importlib
+            import rag_engine
+            importlib.reload(rag_engine)
+            result = rag_engine.get_routing_llm()
+            assert result is not None
+
+    @patch("agents.get_routing_llm")
+    @patch("agents.RAGEngine")
+    def test_orchestrator_uses_keyword_only_when_router_unavailable(self, mock_rag, mock_get_routing_llm):
+        """Orchestrator sets _llm_router_available=False when get_routing_llm raises."""
+        mock_get_routing_llm.side_effect = EnvironmentError("No key")
+        orch = Orchestrator()
+        assert orch._llm_router_available is False
+        assert orch.router_llm is None

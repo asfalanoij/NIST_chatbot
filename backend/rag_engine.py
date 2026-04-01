@@ -44,6 +44,27 @@ def get_embeddings():
     )
 
 
+def get_routing_llm():
+    """Return Gemini Flash for routing (temperature=0).
+
+    Always uses Gemini — avoids ChatOllama cold-start (~3s if Ollama not running).
+    Raises EnvironmentError if GEMINI_API_KEY is absent so callers can fall back
+    to keyword-only routing without crashing.
+    """
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    if not gemini_key:
+        raise EnvironmentError(
+            "GEMINI_API_KEY is required for LLM routing. "
+            "Falling back to keyword-only routing."
+        )
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    return ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash",
+        google_api_key=gemini_key,
+        temperature=0.0,
+    )
+
+
 def get_llm_backend_name():
     """Return which LLM backend is active."""
     if os.environ.get("GEMINI_API_KEY"):
@@ -168,3 +189,37 @@ class RAGEngine:
                 })
 
         return {"answer": answer, "sources": sources}
+
+    def chat_stream(
+        self,
+        question: str,
+        history: Optional[List[Dict[str, str]]] = None,
+        system_prompt_override: Optional[str] = None,
+    ):
+        """Yield answer chunks as strings, then yield sources dict as last item.
+
+        Callers should accumulate chunks into a full answer for logging/caching.
+        """
+        try:
+            vs = self._load_vector_store()
+        except FileNotFoundError:
+            yield "The Knowledge Base is empty. Please upload NIST documents and run ingestion."
+            return
+
+        source_docs = vs.max_marginal_relevance_search(question, k=5, fetch_k=20)
+        scored = vs.similarity_search_with_score(question, k=1)
+        if scored and scored[0][1] > RELEVANCE_THRESHOLD:
+            logger.info("Off-topic query (L2=%.2f): %s", scored[0][1], question[:80])
+            yield "I don't have specific information on that topic in the NIST 800-53 knowledge base. Please ask about NIST security controls, compliance, or risk management."
+            return
+
+        context_text = "\n\n---\n\n".join(
+            f"[{doc.metadata.get('source', 'Unknown')} p.{doc.metadata.get('page', '?')}]\n{doc.page_content}"
+            for doc in source_docs
+        )
+
+        chain = self._build_chain(system_prompt_override) if system_prompt_override else self._default_chain
+        chat_history = _history_to_messages(history) if history else []
+
+        for chunk in chain.stream({"context": context_text, "question": question, "chat_history": chat_history}):
+            yield chunk

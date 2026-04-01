@@ -1,4 +1,4 @@
-.PHONY: setup start-backend start-frontend ingest clean test-backend test-frontend test qa scan maturity auth loadtest rag-eval export-check cicd
+.PHONY: setup start-backend start-frontend ingest clean test-backend test-frontend test qa scan maturity auth loadtest rag-eval export-check cicd eval
 
 setup:
 	@echo "Setting up Backend..."
@@ -48,6 +48,12 @@ loadtest:
 
 rag-eval:
 	@./agenticAI_skills/antigravity.sh rag-evaluator evaluate
+
+eval:
+	@echo "Running RAG quality evaluation..."
+	@./agenticAI_skills/antigravity.sh rag-evaluator evaluate
+	@echo "Interaction stats:"
+	@cd backend && ./venv/bin/python -c "from interaction_log import get_stats; import json; print(json.dumps(get_stats(), indent=2))" 2>/dev/null || echo "(interaction_log.db not yet created — run some queries first)"
 
 export-check:
 	@./agenticAI_skills/antigravity.sh chat-export check
