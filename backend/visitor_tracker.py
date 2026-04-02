@@ -62,7 +62,11 @@ def _get_db():
 
 def track_visit(ip_address, user_agent="", path="/"):
     """Record a visitor hit."""
-    conn = _get_db()
+    try:
+        conn = _get_db()
+    except Exception:
+        logger.exception("Failed to connect to DB for visit tracking")
+        return
     try:
         if DATABASE_URL:
             with conn.cursor() as cur:
@@ -85,7 +89,11 @@ def track_visit(ip_address, user_agent="", path="/"):
 
 def get_visitor_counts():
     """Return unique visitor and total visit counts."""
-    conn = _get_db()
+    try:
+        conn = _get_db()
+    except Exception:
+        logger.exception("Failed to connect to DB for visitor counts")
+        return {"unique_visitors": 0, "total_visits": 0, "error": "db_unavailable"}
     try:
         if DATABASE_URL:
             with conn.cursor() as cur:
