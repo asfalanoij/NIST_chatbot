@@ -28,6 +28,9 @@ class InteractionRecord:
     cached: bool
     relevance_score: float   # L2 distance of top-1 chunk (lower = more relevant)
     llm_backend: str         # "gemini" or "ollama"
+    citations_valid: int     # citations that passed faithfulness check
+    citations_removed: int   # citations stripped (hallucinated page numbers)
+    controls_ungrounded: int # control IDs not found in retrieved chunks
 
 
 _CREATE_TABLE_SQL = """
@@ -45,12 +48,21 @@ CREATE TABLE IF NOT EXISTS interactions (
     latency_ms INTEGER,
     cached INTEGER DEFAULT 0,
     relevance_score REAL,
-    llm_backend TEXT
+    llm_backend TEXT,
+    citations_valid INTEGER DEFAULT 0,
+    citations_removed INTEGER DEFAULT 0,
+    controls_ungrounded INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_agent ON interactions(agent_id);
 CREATE INDEX IF NOT EXISTS idx_timestamp ON interactions(timestamp);
 CREATE INDEX IF NOT EXISTS idx_hash ON interactions(question_hash);
 """
+
+_MIGRATE_SQL = [
+    "ALTER TABLE interactions ADD COLUMN citations_valid INTEGER DEFAULT 0",
+    "ALTER TABLE interactions ADD COLUMN citations_removed INTEGER DEFAULT 0",
+    "ALTER TABLE interactions ADD COLUMN controls_ungrounded INTEGER DEFAULT 0",
+]
 
 
 def _get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
@@ -63,6 +75,12 @@ def init_db(db_path: Path = DB_PATH) -> None:
     """Initialize the interaction log database and schema."""
     with _get_connection(db_path) as conn:
         conn.executescript(_CREATE_TABLE_SQL)
+        # Migrate existing databases — add new columns if missing
+        for stmt in _MIGRATE_SQL:
+            try:
+                conn.execute(stmt)
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
 
 def _hash_question(question: str) -> str:
@@ -84,10 +102,12 @@ def log_interaction(
     cached: bool = False,
     relevance_score: float = 0.0,
     llm_backend: str = "gemini",
+    validation: dict | None = None,
     db_path: Path = DB_PATH,
 ) -> str:
     """Write one interaction record. Returns the record ID."""
     init_db(db_path)
+    v = validation or {}
     record = InteractionRecord(
         id=str(uuid.uuid4()),
         timestamp=datetime.now(timezone.utc).isoformat(),
@@ -103,6 +123,9 @@ def log_interaction(
         cached=cached,
         relevance_score=relevance_score,
         llm_backend=llm_backend,
+        citations_valid=v.get("citations_valid", 0),
+        citations_removed=len(v.get("citations_removed", [])),
+        controls_ungrounded=len(v.get("controls_ungrounded", [])),
     )
     row = asdict(record)
     row["cached"] = int(row["cached"])
@@ -111,11 +134,13 @@ def log_interaction(
             """INSERT INTO interactions
                (id, timestamp, question_hash, session_id, agent_id, agent_name,
                 answer, word_count, citation_count, sources_json,
-                latency_ms, cached, relevance_score, llm_backend)
+                latency_ms, cached, relevance_score, llm_backend,
+                citations_valid, citations_removed, controls_ungrounded)
                VALUES
                (:id, :timestamp, :question_hash, :session_id, :agent_id, :agent_name,
                 :answer, :word_count, :citation_count, :sources_json,
-                :latency_ms, :cached, :relevance_score, :llm_backend)""",
+                :latency_ms, :cached, :relevance_score, :llm_backend,
+                :citations_valid, :citations_removed, :controls_ungrounded)""",
             row,
         )
     logger.debug("Logged interaction %s (latency=%dms)", record.id, latency_ms)
@@ -133,7 +158,10 @@ def get_stats(db_path: Path = DB_PATH) -> dict:
                 SUM(CASE WHEN cached = 1 THEN 1 ELSE 0 END) * 1.0 / MAX(COUNT(*), 1) AS cache_hit_rate,
                 AVG(relevance_score) AS avg_relevance_score,
                 AVG(word_count) AS avg_word_count,
-                AVG(citation_count) AS avg_citation_count
+                AVG(citation_count) AS avg_citation_count,
+                AVG(citations_valid) AS avg_citations_valid,
+                AVG(citations_removed) AS avg_citations_removed,
+                AVG(controls_ungrounded) AS avg_controls_ungrounded
             FROM interactions
         """).fetchone()
 
@@ -164,4 +192,7 @@ def get_stats(db_path: Path = DB_PATH) -> dict:
         "avg_relevance_score": round(row["avg_relevance_score"] or 0.0, 4),
         "avg_word_count": round(row["avg_word_count"] or 0.0, 1),
         "avg_citation_count": round(row["avg_citation_count"] or 0.0, 2),
+        "avg_citations_valid": round(row["avg_citations_valid"] or 0.0, 2),
+        "avg_citations_removed": round(row["avg_citations_removed"] or 0.0, 2),
+        "avg_controls_ungrounded": round(row["avg_controls_ungrounded"] or 0.0, 2),
     }

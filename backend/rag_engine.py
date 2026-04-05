@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from typing import List, Dict, Any, Optional
 from langchain_community.vectorstores import FAISS
 from langchain_ollama import OllamaEmbeddings, ChatOllama
@@ -12,6 +13,10 @@ logger = logging.getLogger(__name__)
 # L2 distance threshold — chunks above this are considered off-topic.
 # FAISS L2: 0 = identical, ~1.0 = related, >1.5 = likely irrelevant.
 RELEVANCE_THRESHOLD = 1.5
+
+# Faithfulness validation patterns
+_CITATION_RE = re.compile(r'\[p\.(\d+)\]')
+_CONTROL_ID_RE = re.compile(r'\*\*([A-Z]{2}-\d+(?:\(\d+\))?)\*\*')
 
 
 def get_llm(temperature=0.2):
@@ -85,6 +90,77 @@ def _history_to_messages(history: List[Dict[str, str]]):
     return messages
 
 
+def validate_response(
+    answer: str,
+    source_docs: list,
+) -> tuple[str, dict]:
+    """Verify citations and control IDs against retrieved chunks.
+
+    Returns (corrected_answer, validation_report).
+    - Strips [p.XX] citations where XX is not in any retrieved chunk's page metadata (±1 tolerance).
+    - Flags bolded control IDs not found in any retrieved chunk text.
+    """
+    # Build valid page set from retrieved docs (±1 tolerance for chunk overlap)
+    raw_pages: set[int] = set()
+    for doc in source_docs:
+        page = doc.metadata.get("page")
+        if page is not None:
+            try:
+                raw_pages.add(int(page))
+            except (ValueError, TypeError):
+                pass
+    valid_pages: set[int] = set()
+    for p in raw_pages:
+        valid_pages.update([p - 1, p, p + 1])
+
+    # Build control ID set from metadata (preferred) or text fallback
+    metadata_control_ids: set[str] = set()
+    for doc in source_docs:
+        ids = doc.metadata.get("control_ids", [])
+        if ids:
+            metadata_control_ids.update(ids)
+    # Fallback: concatenate text for substring check if no metadata
+    chunk_text = " ".join(doc.page_content for doc in source_docs)
+
+    # Check 1: Citation verification
+    citations_removed: list[str] = []
+    def _check_citation(match: re.Match) -> str:
+        page_num = int(match.group(1))
+        if page_num in valid_pages:
+            return match.group(0)
+        citations_removed.append(match.group(0))
+        return ""  # strip invalid citation
+
+    corrected = _CITATION_RE.sub(_check_citation, answer)
+
+    # Check 2: Control ID verification (use metadata if available, else text)
+    controls_ungrounded: list[str] = []
+    for match in _CONTROL_ID_RE.finditer(corrected):
+        control_id = match.group(1)
+        if metadata_control_ids:
+            if control_id not in metadata_control_ids:
+                controls_ungrounded.append(control_id)
+        elif control_id not in chunk_text:
+            controls_ungrounded.append(control_id)
+
+    # Count valid citations remaining
+    citations_valid = len(_CITATION_RE.findall(corrected))
+
+    report = {
+        "citations_valid": citations_valid,
+        "citations_removed": citations_removed,
+        "controls_ungrounded": controls_ungrounded,
+    }
+
+    if citations_removed or controls_ungrounded:
+        logger.warning(
+            "Faithfulness check: removed=%s, ungrounded=%s",
+            citations_removed, controls_ungrounded,
+        )
+
+    return corrected, report
+
+
 class RAGEngine:
     def __init__(self):
         self.index_path = os.path.join(os.path.dirname(__file__), "index_kms")
@@ -93,14 +169,20 @@ class RAGEngine:
         self.llm = get_llm(temperature=0.2)
 
         self.default_system_prompt = (
-            "You are a concise NIST 800-53 consultant. You MUST follow these rules:\n\n"
-            "FORMAT: Use markdown. Start with a bold one-line summary.\n"
-            "HIERARCHY: Use nested bullets. Main point -> Sub-point.\n"
-            "SPACING: Add blank lines between main bullet points.\n"
-            "LENGTH: Maximum 150 words total.\n"
-            "STYLE: No filler, no intros, no 'Okay let's...', no conclusions. Just facts.\n"
-            "CITATIONS: Inline as [p.XX].\n"
-            "CONTROLS: Bold IDs like **AC-2**, **AC-2(1)**.\n\n"
+            "You are a NIST 800-53 Rev.5 reference assistant. "
+            "You answer ONLY from the provided context.\n\n"
+            "RULES:\n"
+            "1. ONLY state facts that appear in the Context below. "
+            "Never add information from your training data.\n"
+            "2. If the context does not contain the answer, say: "
+            '"This information is not covered in the retrieved NIST 800-53 sections."\n'
+            "3. Every claim MUST cite [p.XX] matching a page number "
+            "from the context headers.\n"
+            "4. Do NOT invent page numbers. Only cite pages shown in "
+            "context headers.\n"
+            "5. Bold all control IDs: **AC-2**, **SC-7(1)**.\n"
+            "6. Markdown with nested bullets. Start with a bold one-line summary.\n"
+            "7. Maximum 200 words. No filler, no introductions, no conclusions.\n\n"
             "Context:\n{context}"
         )
 
@@ -175,6 +257,9 @@ class RAGEngine:
             "chat_history": chat_history,
         })
 
+        # Faithfulness validation — strip hallucinated citations / flag ungrounded controls
+        answer, validation = validate_response(answer, source_docs)
+
         # Build source citations
         sources = []
         seen = set()
@@ -188,7 +273,7 @@ class RAGEngine:
                     "content_snippet": doc.page_content[:200] + "...",
                 })
 
-        return {"answer": answer, "sources": sources}
+        return {"answer": answer, "sources": sources, "validation": validation}
 
     def chat_stream(
         self,
@@ -196,10 +281,13 @@ class RAGEngine:
         history: Optional[List[Dict[str, str]]] = None,
         system_prompt_override: Optional[str] = None,
     ):
-        """Yield answer chunks as strings, then yield sources dict as last item.
+        """Yield answer chunks as strings.
 
         Callers should accumulate chunks into a full answer for logging/caching.
+        After iteration completes, ``self.last_source_docs`` holds the retrieved
+        documents for post-stream faithfulness validation.
         """
+        self.last_source_docs = []
         try:
             vs = self._load_vector_store()
         except FileNotFoundError:
@@ -207,6 +295,8 @@ class RAGEngine:
             return
 
         source_docs = vs.max_marginal_relevance_search(question, k=5, fetch_k=20)
+        self.last_source_docs = source_docs
+
         scored = vs.similarity_search_with_score(question, k=1)
         if scored and scored[0][1] > RELEVANCE_THRESHOLD:
             logger.info("Off-topic query (L2=%.2f): %s", scored[0][1], question[:80])

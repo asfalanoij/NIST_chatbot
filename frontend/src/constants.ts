@@ -66,39 +66,6 @@ export const SPECIALIST_AGENTS: SpecialistAgent[] = [
             'Inheritance model visualization for cloud consumers.'
         ]
     },
-    {
-        id: '5',
-        name: 'Product Manager',
-        description: 'Roadmaps & prioritization',
-        icon: 'target',
-        details: [
-            'Feature prioritization based on compliance debt.',
-            'Roadmap alignment with ATO milestones.',
-            'Stakeholder communication templates for security blockers.'
-        ]
-    },
-    {
-        id: '6',
-        name: 'QA & Test Strategy',
-        description: 'Test cases & validation',
-        icon: 'check-circle',
-        details: [
-            'Automated test case generation aligned with SP 800-53A.',
-            'Control validation criteria and coverage matrices.',
-            'Regression and acceptance testing for security controls.'
-        ]
-    },
-    {
-        id: '7',
-        name: 'DevSecOps',
-        description: 'CI/CD & pipeline security',
-        icon: 'terminal',
-        details: [
-            'CI/CD pipeline hardening with SAST/DAST integration.',
-            'Container and infrastructure-as-code security scanning.',
-            'Shift-left compliance automation and dependency analysis.'
-        ]
-    },
 ];
 
 export const KNOWLEDGE_BASE: KnowledgeItem[] = [

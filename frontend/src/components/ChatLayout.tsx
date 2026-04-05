@@ -16,7 +16,7 @@ const QUICK_PROMPTS = [
     { icon: AlertTriangle, label: "Risk Assessment", prompt: "How do I perform a FIPS 199 security categorization for a moderate-impact system?" },
     { icon: ClipboardCheck, label: "Audit Prep", prompt: "What evidence artifacts do I need for an 800-53 assessment of access controls?" },
     { icon: GitBranch, label: "FedRAMP Mapping", prompt: "How do NIST 800-53 controls map to FedRAMP requirements?" },
-    { icon: Target, label: "Compliance Roadmap", prompt: "Create a phased compliance roadmap for a moderate-impact system. Prioritize quick wins first." },
+    { icon: Target, label: "Baseline Controls", prompt: "What are the baseline controls for a moderate-impact system under NIST 800-53?" },
 ]
 
 export default function ChatLayout() {
@@ -108,9 +108,6 @@ export default function ChatLayout() {
                             { color: "text-emerald-400", bg: "bg-emerald-500/10", name: "Audit & Assessment", desc: "Evidence & test procedures" },
                             { color: "text-amber-400", bg: "bg-amber-500/10", name: "Risk & Impact", desc: "FIPS 199 & CIA analysis" },
                             { color: "text-purple-400", bg: "bg-purple-500/10", name: "Compliance Mapping", desc: "FedRAMP, CMMC, ISO" },
-                            { color: "text-rose-400", bg: "bg-rose-500/10", name: "Product Manager", desc: "Roadmaps & prioritization" },
-                            { color: "text-cyan-400", bg: "bg-cyan-500/10", name: "QA & Test Strategy", desc: "Test cases & validation" },
-                            { color: "text-teal-400", bg: "bg-teal-500/10", name: "DevSecOps", desc: "CI/CD & pipeline security" },
                         ].map((agent) => (
                             <div key={agent.name} className={`p-2.5 rounded-lg ${agent.bg} border border-slate-700/30`}>
                                 <div className={`text-xs font-medium ${agent.color}`}>{agent.name}</div>

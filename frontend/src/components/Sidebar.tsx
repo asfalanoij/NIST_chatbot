@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { ShieldCheck, FileText, Cloud, Info, ChevronDown, ChevronRight, BarChart3 } from 'lucide-react';
-import { SPECIALIST_AGENTS, KNOWLEDGE_BASE } from '../constants';
+import { KNOWLEDGE_BASE } from '../constants';
+import { useConfig } from '../context/ConfigContext';
 import ProjectInsightsModal from './ProjectInsightsModal';
 import CrossMapModal from './CrossMapModal';
 
@@ -17,6 +18,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
+    const { agents: SPECIALIST_AGENTS, loading } = useConfig();
     const [hoveredAgent, setHoveredAgent] = useState<{ id: string; name: string; description: string; icon: string; details: string[]; top: number } | null>(null);
     const [insightsOpen, setInsightsOpen] = useState(false);
     const [crossMapOpen, setCrossMapOpen] = useState(false);

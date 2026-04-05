@@ -9,8 +9,8 @@ from agents import AGENTS, ROUTE_KEYWORDS, Orchestrator
 
 
 class TestAgentDefinitions:
-    def test_seven_agents_defined(self):
-        assert len(AGENTS) == 7
+    def test_four_agents_defined(self):
+        assert len(AGENTS) == 4
 
     def test_all_agents_have_name_and_prompt(self):
         for key, agent in AGENTS.items():
@@ -22,8 +22,16 @@ class TestAgentDefinitions:
             assert "cite" in agent["prompt"].lower(), f"{key} prompt doesn't require citations"
 
     def test_expected_agent_keys(self):
-        expected = {"NIST_SPECIALIST", "AUDIT_SPECIALIST", "RISK_SPECIALIST", "COMPLIANCE_SPECIALIST", "PM_AGENT", "QA_AGENT", "DEVSECOPS_AGENT"}
+        expected = {"NIST_SPECIALIST", "AUDIT_SPECIALIST", "RISK_SPECIALIST", "COMPLIANCE_SPECIALIST"}
         assert set(AGENTS.keys()) == expected
+
+    def test_all_prompts_enforce_context_only(self):
+        """Every agent prompt must include the grounding mandate."""
+        for key, agent in AGENTS.items():
+            prompt = agent["prompt"].lower()
+            assert "only" in prompt and "context" in prompt, (
+                f"{key} prompt missing 'ONLY from context' grounding mandate"
+            )
 
 
 class TestKeywordRouting:
@@ -37,17 +45,6 @@ class TestKeywordRouting:
 
     def test_compliance_keywords(self):
         assert "fedramp" in ROUTE_KEYWORDS["COMPLIANCE_SPECIALIST"]
-
-    def test_pm_keywords(self):
-        assert "roadmap" in ROUTE_KEYWORDS["PM_AGENT"]
-
-    def test_qa_keywords(self):
-        assert "test case" in ROUTE_KEYWORDS["QA_AGENT"]
-        assert "validation" in ROUTE_KEYWORDS["QA_AGENT"]
-
-    def test_devsecops_keywords(self):
-        assert "pipeline" in ROUTE_KEYWORDS["DEVSECOPS_AGENT"]
-        assert "sast" in ROUTE_KEYWORDS["DEVSECOPS_AGENT"]
 
 
 class TestOrchestratorRouting:
@@ -80,15 +77,6 @@ class TestOrchestratorRouting:
 
     @patch("agents.get_routing_llm")
     @patch("agents.RAGEngine")
-    def test_keyword_fallback_pm(self, mock_rag, mock_get_llm):
-        mock_llm = MagicMock()
-        mock_get_llm.return_value = mock_llm
-        orch = Orchestrator()
-        result = orch._keyword_route("Create a roadmap for our executive stakeholder")
-        assert result == "PM_AGENT"
-
-    @patch("agents.get_routing_llm")
-    @patch("agents.RAGEngine")
     def test_keyword_fallback_compliance(self, mock_rag, mock_get_llm):
         mock_llm = MagicMock()
         mock_get_llm.return_value = mock_llm
@@ -98,21 +86,14 @@ class TestOrchestratorRouting:
 
     @patch("agents.get_routing_llm")
     @patch("agents.RAGEngine")
-    def test_keyword_fallback_qa(self, mock_rag, mock_get_llm):
+    def test_removed_agents_fallback_to_default(self, mock_rag, mock_get_llm):
+        """Queries that used to match PM/QA/DevSecOps should now return empty (default)."""
         mock_llm = MagicMock()
         mock_get_llm.return_value = mock_llm
         orch = Orchestrator()
-        result = orch._keyword_route("Create a test case with full test coverage for validation")
-        assert result == "QA_AGENT"
-
-    @patch("agents.get_routing_llm")
-    @patch("agents.RAGEngine")
-    def test_keyword_fallback_devsecops(self, mock_rag, mock_get_llm):
-        mock_llm = MagicMock()
-        mock_get_llm.return_value = mock_llm
-        orch = Orchestrator()
-        result = orch._keyword_route("How to add SAST to CI/CD pipeline?")
-        assert result == "DEVSECOPS_AGENT"
+        assert orch._keyword_route("Create a roadmap for our executive stakeholder") == ""
+        assert orch._keyword_route("Create a test case with full test coverage") == ""
+        assert orch._keyword_route("How to add SAST to CI/CD pipeline?") == ""
 
 
 class TestRoutingLLM:

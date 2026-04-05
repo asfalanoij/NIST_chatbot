@@ -27,7 +27,7 @@ Every change must be measured against: retrieval accuracy, response latency, cit
 |-------|------|
 | Backend | Flask + LangChain + FAISS |
 | LLM | Gemini Flash (GEMINI_API_KEY) / Ollama fallback |
-| Embeddings | models/text-embedding-004 (768-dim) after Phase 5 |
+| Embeddings | models/gemini-embedding-001 (768-dim) after Phase 5 |
 | Frontend | React 19 + Vite 7 + Tailwind v4 |
 | DB | PostgreSQL (prod) / SQLite fallback |
 | Hosting | Render.com |
