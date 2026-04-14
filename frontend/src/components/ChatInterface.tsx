@@ -7,7 +7,7 @@ import { API_BASE } from '../config';
 interface Message {
     role: 'user' | 'assistant';
     content: string;
-    sources?: { source: string; page: number; snippet: string }[];
+    sources?: { source: string; page: number | string; content_snippet: string }[];
     agent_name?: string;
     agent_id?: string;
 }
