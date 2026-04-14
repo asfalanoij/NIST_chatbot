@@ -1,32 +1,18 @@
 import os
 import logging
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 from visitor_tracker import get_visitor_counts, check_db_health
 from interaction_log import get_stats as get_interaction_stats
 from agents import Orchestrator
-from functools import wraps
-import hmac
+from api.auth import require_api_key
 
 logger = logging.getLogger(__name__)
 
 health_bp = Blueprint("health", __name__)
 
-# Need a reference to orchestrator for faiss check
 orchestrator = Orchestrator()
 
 _INTERNAL_ERROR_MSG = "An internal error occurred. Please try again."
-
-def require_api_key(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        api_key = os.environ.get("API_KEY")
-        if not api_key:
-            return f(*args, **kwargs)
-        provided = request.headers.get("X-API-Key", "")
-        if not provided or not hmac.compare_digest(provided, api_key):
-            return jsonify({"error": "Unauthorized. Provide a valid X-API-Key header."}), 401
-        return f(*args, **kwargs)
-    return decorated
 
 @health_bp.route('/health', methods=['GET'])
 def health_check():

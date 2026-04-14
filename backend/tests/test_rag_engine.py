@@ -148,3 +148,130 @@ class TestValidateResponse:
         corrected, report = validate_response(answer, [])
         assert "[p.42]" not in corrected
         assert report["citations_removed"] == ["[p.42]"]
+
+
+class TestHistoryToMessages:
+    def test_empty_list(self):
+        from rag_engine import _history_to_messages
+        assert _history_to_messages([]) == []
+
+    def test_converts_roles(self):
+        from rag_engine import _history_to_messages
+        from langchain_core.messages import HumanMessage, AIMessage
+        history = [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+        ]
+        msgs = _history_to_messages(history)
+        assert len(msgs) == 2
+        assert isinstance(msgs[0], HumanMessage)
+        assert isinstance(msgs[1], AIMessage)
+        assert msgs[0].content == "hi"
+
+    def test_ignores_unknown_roles(self):
+        from rag_engine import _history_to_messages
+        history = [
+            {"role": "system", "content": "ignored"},
+            {"role": "user", "content": "kept"},
+        ]
+        msgs = _history_to_messages(history)
+        assert len(msgs) == 1
+
+
+class TestRAGEngineChatPaths:
+    """Tests for chat() and chat_stream() with mocked vector store."""
+
+    @patch("rag_engine.get_llm")
+    @patch("rag_engine.get_embeddings")
+    def test_chat_off_topic_rejection(self, mock_emb, mock_get_llm):
+        from rag_engine import RAGEngine
+        engine = RAGEngine()
+
+        mock_vs = MagicMock()
+        # MMR returns docs but L2 score is above threshold
+        mock_vs.max_marginal_relevance_search.return_value = []
+        mock_vs.similarity_search_with_score.return_value = [
+            (MagicMock(), 2.0)  # L2 = 2.0 > 1.5 threshold
+        ]
+        engine.vector_store = mock_vs
+
+        result = engine.chat("What is the weather?")
+        assert "don't have specific information" in result["answer"]
+        assert result["sources"] == []
+
+    @patch("rag_engine.get_llm")
+    @patch("rag_engine.get_embeddings")
+    def test_chat_returns_sources_and_validation(self, mock_emb, mock_get_llm):
+        from rag_engine import RAGEngine
+        engine = RAGEngine()
+
+        mock_doc = MagicMock()
+        mock_doc.metadata = {"source": "nist.pdf", "page": 42, "control_ids": ["AC-2"]}
+        mock_doc.page_content = "AC-2 Account Management details."
+
+        mock_vs = MagicMock()
+        mock_vs.max_marginal_relevance_search.return_value = [mock_doc]
+        mock_vs.similarity_search_with_score.return_value = [(mock_doc, 0.5)]
+        engine.vector_store = mock_vs
+
+        # Mock the chain to return a grounded answer
+        mock_chain = MagicMock()
+        mock_chain.invoke.return_value = "**AC-2** is Account Management [p.42]."
+        engine._default_chain = mock_chain
+
+        result = engine.chat("What is AC-2?")
+        assert "answer" in result
+        assert "sources" in result
+        assert "validation" in result
+        assert len(result["sources"]) > 0
+
+    @patch("rag_engine.get_llm")
+    @patch("rag_engine.get_embeddings")
+    def test_chat_uses_override_prompt(self, mock_emb, mock_get_llm):
+        from rag_engine import RAGEngine
+        engine = RAGEngine()
+
+        mock_doc = MagicMock()
+        mock_doc.metadata = {"source": "nist.pdf", "page": 1}
+        mock_doc.page_content = "Content."
+
+        mock_vs = MagicMock()
+        mock_vs.max_marginal_relevance_search.return_value = [mock_doc]
+        mock_vs.similarity_search_with_score.return_value = [(mock_doc, 0.5)]
+        engine.vector_store = mock_vs
+
+        with patch.object(engine, '_build_chain') as mock_build:
+            mock_chain = MagicMock()
+            mock_chain.invoke.return_value = "Override answer."
+            mock_build.return_value = mock_chain
+
+            engine.chat("test", system_prompt_override="Custom prompt\n{context}")
+            mock_build.assert_called_once_with("Custom prompt\n{context}")
+
+    @patch("rag_engine.get_llm")
+    @patch("rag_engine.get_embeddings")
+    def test_chat_stream_without_index(self, mock_emb, mock_get_llm):
+        from rag_engine import RAGEngine
+        engine = RAGEngine()
+        engine.index_path = "/nonexistent/path"
+
+        chunks = list(engine.chat_stream("What is AC-2?"))
+        assert len(chunks) == 1
+        assert "Knowledge Base is empty" in chunks[0]
+
+    @patch("rag_engine.get_llm")
+    @patch("rag_engine.get_embeddings")
+    def test_chat_stream_off_topic(self, mock_emb, mock_get_llm):
+        from rag_engine import RAGEngine
+        engine = RAGEngine()
+
+        mock_vs = MagicMock()
+        mock_vs.max_marginal_relevance_search.return_value = []
+        mock_vs.similarity_search_with_score.return_value = [
+            (MagicMock(), 2.0)
+        ]
+        engine.vector_store = mock_vs
+
+        chunks = list(engine.chat_stream("What is the weather?"))
+        assert len(chunks) == 1
+        assert "don't have specific information" in chunks[0]

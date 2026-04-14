@@ -8,31 +8,15 @@ from flask_limiter.util import get_remote_address
 from agents import Orchestrator
 from ingest import ingest_documents
 from visitor_tracker import track_visit
-from functools import wraps
-import hmac
+from api.auth import require_api_key
 
 logger = logging.getLogger(__name__)
 
 chat_bp = Blueprint("chat", __name__)
 
-# Initialize Orchestrator (singleton-like within the BP context if needed, but app.py should handle)
-# Actually, it's better to pass it or have it accessible.
-# For now, we'll create it here or assume it's attached to app.
 orchestrator = Orchestrator()
 
 _INTERNAL_ERROR_MSG = "An internal error occurred. Please try again."
-
-def require_api_key(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        api_key = os.environ.get("API_KEY")
-        if not api_key:
-            return f(*args, **kwargs)
-        provided = request.headers.get("X-API-Key", "")
-        if not provided or not hmac.compare_digest(provided, api_key):
-            return jsonify({"error": "Unauthorized. Provide a valid X-API-Key header."}), 401
-        return f(*args, **kwargs)
-    return decorated
 
 def _sanitise_session_id(raw: str) -> str:
     return re.sub(r'[^a-zA-Z0-9\-_]', '', raw)[:64]

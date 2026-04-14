@@ -27,7 +27,7 @@ services:
       DATABASE_URL: postgresql://nistbot:${POSTGRES_PASSWORD}@db:5432/nistbot
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_MODEL: gemini-2.0-flash
-      GEMINI_EMBEDDING_MODEL: models/text-embedding-004
+      GEMINI_EMBEDDING_MODEL: models/gemini-embedding-001
       API_KEY: ${API_KEY}
       SECRET_KEY: ${SECRET_KEY}
       CORS_ORIGINS: https://80053.rudyprasetiya.com

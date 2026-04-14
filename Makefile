@@ -20,12 +20,16 @@ ingest:
 
 # --- Testing ---
 test-backend:
-	@echo "Running backend tests..."
-	cd backend && . venv/bin/activate && python -m pytest tests/ -v
+	@echo "Running backend tests with coverage..."
+	cd backend && . venv/bin/activate && python -m pytest tests/ -v --cov=. --cov-report=term-missing
 
 test-frontend:
-	@echo "Running frontend build check..."
-	cd frontend && npm run build
+	@echo "Running frontend unit tests..."
+	cd frontend && npm test
+
+test-e2e:
+	@echo "Running Playwright E2E tests..."
+	cd frontend && npx playwright test
 
 test: test-backend test-frontend
 	@echo "All tests passed."

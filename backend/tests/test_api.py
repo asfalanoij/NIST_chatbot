@@ -170,7 +170,7 @@ class TestSecurityHardening:
     def test_error_response_does_not_leak_exception(self, app_client):
         """500 error must return a generic message, not the exception string."""
         from unittest.mock import patch as _patch
-        with _patch("app.orchestrator") as mock_orch:
+        with _patch("api.chat.orchestrator") as mock_orch:
             mock_orch.route_and_chat.side_effect = RuntimeError(
                 "/home/user/app/backend/agents.py line 42: secret_key=abc123"
             )
