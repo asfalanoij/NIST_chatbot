@@ -38,32 +38,43 @@ const CrossMapModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
     useEffect(() => {
         if (!isOpen) return;
-        setLoading(true);
-        Promise.all([
-            fetch(`${API_BASE}/api/crossmap`).then(r => r.json()),
-            fetch(`${API_BASE}/api/crossmap/families`).then(r => r.json()),
-            fetch(`${API_BASE}/api/crossmap/stats`).then(r => r.json()),
-        ])
-            .then(([mapData, famData, statsData]) => {
-                setMappings(mapData.mappings);
-                setFamilies(famData.families);
-                setStats(statsData);
-            })
-            .catch(() => { })
-            .finally(() => setLoading(false));
+        let cancelled = false;
+        const load = async () => {
+            setLoading(true);
+            try {
+                const [mapData, famData, statsData] = await Promise.all([
+                    fetch(`${API_BASE}/api/crossmap`).then(r => r.json()),
+                    fetch(`${API_BASE}/api/crossmap/families`).then(r => r.json()),
+                    fetch(`${API_BASE}/api/crossmap/stats`).then(r => r.json()),
+                ]);
+                if (!cancelled) {
+                    setMappings(mapData.mappings);
+                    setFamilies(famData.families);
+                    setStats(statsData);
+                }
+            } catch { /* ignore */ }
+            if (!cancelled) setLoading(false);
+        };
+        load();
+        return () => { cancelled = true; };
     }, [isOpen]);
 
     useEffect(() => {
         if (!isOpen || !selectedFamily) return;
-        setLoading(true);
-        const url = selectedFamily
-            ? `${API_BASE}/api/crossmap?family=${encodeURIComponent(selectedFamily)}`
-            : `${API_BASE}/api/crossmap`;
-        fetch(url)
-            .then(r => r.json())
-            .then(data => setMappings(data.mappings))
-            .catch(() => { })
-            .finally(() => setLoading(false));
+        let cancelled = false;
+        const load = async () => {
+            setLoading(true);
+            try {
+                const url = selectedFamily
+                    ? `${API_BASE}/api/crossmap?family=${encodeURIComponent(selectedFamily)}`
+                    : `${API_BASE}/api/crossmap`;
+                const data = await fetch(url).then(r => r.json());
+                if (!cancelled) setMappings(data.mappings);
+            } catch { /* ignore */ }
+            if (!cancelled) setLoading(false);
+        };
+        load();
+        return () => { cancelled = true; };
     }, [selectedFamily, isOpen]);
 
     const handleDownloadCSV = () => {

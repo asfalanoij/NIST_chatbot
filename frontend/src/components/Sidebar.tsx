@@ -18,7 +18,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
-    const { agents: SPECIALIST_AGENTS, loading } = useConfig();
+    const { agents: SPECIALIST_AGENTS } = useConfig();
     const [hoveredAgent, setHoveredAgent] = useState<{ id: string; name: string; description: string; icon: string; details: string[]; top: number } | null>(null);
     const [insightsOpen, setInsightsOpen] = useState(false);
     const [crossMapOpen, setCrossMapOpen] = useState(false);
