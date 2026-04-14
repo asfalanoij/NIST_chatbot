@@ -61,7 +61,7 @@ describe('App', () => {
       </ConfigProvider>
     )
     await waitFor(() => {
-      expect(screen.getByText(/System Ready|Gemini|Ollama|Offline/i)).toBeInTheDocument()
+      expect(screen.getByText('System Ready')).toBeInTheDocument()
     })
   })
 })
