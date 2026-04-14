@@ -9,6 +9,7 @@ node_modules/
 # Secrets & cache
 .env
 .env.local
+.env.prod
 emb_cache/
 index_kms/
 *.faiss

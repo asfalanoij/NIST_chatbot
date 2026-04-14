@@ -34,19 +34,19 @@ class TestChatResponse:
         assert resp.cached is False
 
     def test_answer_within_limit_not_truncated(self):
-        short = "Short answer. " * 10  # well under 250 words
+        short = "Short answer. " * 10  # well under 200 words
         resp = ChatResponse(answer=short)
         assert resp.answer == short
 
-    def test_answer_truncated_at_250_words(self):
+    def test_answer_truncated_at_200_words(self):
         # 300 words — should be truncated
         long_answer = ("word " * 300).strip()
         resp = ChatResponse(answer=long_answer)
-        assert len(resp.answer.split()) <= 250
+        assert len(resp.answer.split()) <= 200
 
     def test_truncation_at_sentence_boundary(self):
-        # Build an answer that is 260 words, with a sentence end at word 200
-        first_part = ("word " * 199).strip() + ". "
+        # Build an answer that is 210 words, with a sentence end at word 150
+        first_part = ("word " * 149).strip() + ". "
         second_part = ("extra " * 61).strip()
         long_answer = first_part + second_part
         resp = ChatResponse(answer=long_answer)

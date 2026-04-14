@@ -29,6 +29,12 @@ class SourceCitation(BaseModel):
     content_snippet: str = ""
 
 
+class ValidationReport(BaseModel):
+    citations_valid: int = 0
+    citations_removed: list[str] = Field(default_factory=list)
+    controls_ungrounded: list[str] = Field(default_factory=list)
+
+
 class ChatResponse(BaseModel):
     answer: str
     sources: list[SourceCitation] = Field(default_factory=list)
@@ -37,16 +43,17 @@ class ChatResponse(BaseModel):
     word_count: int = 0
     cached: bool = False
     latency_ms: int = 0
+    validation: ValidationReport = Field(default_factory=ValidationReport)
 
     @field_validator("answer")
     @classmethod
     def truncate_at_word_limit(cls, v: str) -> str:
-        """Truncate answer at sentence boundary if > 250 words."""
+        """Truncate answer at sentence boundary if > 200 words."""
         words = v.split()
-        if len(words) <= 250:
+        if len(words) <= 200:
             return v
-        # Find last sentence boundary within first 250 words
-        truncated = " ".join(words[:250])
+        # Find last sentence boundary within first 200 words
+        truncated = " ".join(words[:200])
         # Try to end at a sentence boundary (. ! ?)
         match = re.search(r'[.!?][^.!?]*$', truncated)
         if match:
@@ -79,6 +86,8 @@ class ChatResponse(BaseModel):
             )
             for s in raw_sources
         ]
+        raw_validation = result.get("validation", {})
+        validation = ValidationReport(**raw_validation) if raw_validation else ValidationReport()
         return cls(
             answer=answer,
             sources=sources,
@@ -87,6 +96,7 @@ class ChatResponse(BaseModel):
             word_count=len(answer.split()),
             cached=cached,
             latency_ms=latency_ms,
+            validation=validation,
         )
 
 
@@ -103,3 +113,6 @@ class InteractionStats(BaseModel):
     avg_relevance_score: float
     avg_word_count: float
     avg_citation_count: float
+    avg_citations_valid: float = 0.0
+    avg_citations_removed: float = 0.0
+    avg_controls_ungrounded: float = 0.0

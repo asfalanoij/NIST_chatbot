@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import glob
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -7,6 +8,16 @@ from langchain_community.vectorstores import FAISS
 from rag_engine import get_embeddings
 
 logger = logging.getLogger(__name__)
+
+# Known NIST 800-53 control family prefixes
+_NIST_FAMILIES = frozenset({
+    "AC", "AT", "AU", "CA", "CM", "CP", "IA", "IR",
+    "MA", "MP", "PE", "PL", "PM", "PS", "RA", "SA",
+    "SC", "SI", "SR",
+})
+_CONTROL_RE = re.compile(
+    r'\b(' + '|'.join(_NIST_FAMILIES) + r')-\d+(?:\(\d+\))?\b'
+)
 
 DOCS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs")
 INDEX_PATH = os.path.join(os.path.dirname(__file__), "index_kms")
@@ -39,9 +50,12 @@ def ingest_documents():
         docs = loader.load()
         splits = text_splitter.split_documents(docs)
 
-        # Add metadata
+        # Enrich metadata: source filename + structured control IDs
         for split in splits:
             split.metadata["source"] = os.path.basename(pdf_path)
+            control_ids = sorted(set(_CONTROL_RE.findall(split.page_content)))
+            split.metadata["control_ids"] = control_ids
+            split.metadata["control_family"] = control_ids[0][:2] if control_ids else ""
 
         all_splits.extend(splits)
         logger.info("  - Generated %d chunks.", len(splits))

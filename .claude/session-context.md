@@ -3,12 +3,12 @@
 **Mission:** ULTRA RELEVANT AND FAST NIST 800-53 chatbot. Every change = better retrieval OR faster response.
 
 **Current phase:**
-- [ ] Phase 00: Interaction logging + .claude/ structure
-- [ ] Phase 1:  Routing fix (replace ChatOllama router with Gemini Flash)
-- [ ] Phase 2:  Pydantic schemas + word-limit validator
-- [ ] Phase 3:  LRU cache + interaction logging wired
-- [ ] Phase 4:  SSE streaming endpoint
-- [ ] Phase 5:  Embedding swap (text-embedding-004) + re-ingest
+- [x] Phase 00: Interaction logging + .claude/ structure
+- [x] Phase 1:  Routing fix (replace ChatOllama router with Gemini Flash)
+- [x] Phase 2:  Pydantic schemas + word-limit validator
+- [x] Phase 3:  LRU cache + interaction logging wired
+- [x] Phase 4:  SSE streaming endpoint
+- [x] Phase 5:  Embedding swap (text-embedding-004) + re-ingest
 
 **Key architectural constraints:**
 - Embedding model at ingest MUST match query time — #1 failure mode

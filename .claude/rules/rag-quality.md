@@ -15,7 +15,7 @@
 
 ## Embeddings
 
-- Current model: `models/text-embedding-004` (768-dim) after Phase 5
+- Current model: `models/gemini-embedding-001` (768-dim) after Phase 5
 - The embedding model used at ingest MUST match the model used at query time
 - This is the #1 failure mode — always check `GEMINI_EMBEDDING_MODEL` env var
 - Env var `GEMINI_EMBEDDING_MODEL` must be set consistently in both ingest and app runtime

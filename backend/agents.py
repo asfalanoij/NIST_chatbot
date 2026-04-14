@@ -1,113 +1,34 @@
 import json
 import logging
 import time
+import os
 from typing import Dict, Any, List, Generator
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from rag_engine import RAGEngine, get_routing_llm
+from rag_engine import RAGEngine, get_routing_llm, validate_response
 from cache import LRUCache
 from interaction_log import log_interaction
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------
-# Agent Personas — 7 Specialists (Pareto Optimum)
-# Each solves a distinct compliance pain point for organizations.
-# ---------------------------------------------------------------------
+# Path to the SSoT JSON file
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+AGENTS_PATH = os.path.join(DATA_DIR, "agents.json")
 
-# Shared format rules injected into every agent prompt
-_FORMAT_RULES = (
-    "\n\nSTRICT FORMAT RULES (you MUST follow these):\n"
-    "- Start with ONE bold summary sentence.\n"
-    "- **Hierarchy**: Use nested bullets for details. E.g.,\n"
-    "  - **Control**: Description\n"
-    "    - Evidence: ...\n"
-    "    - Test: ...\n"
-    "- **Spacing**: Use blank lines between major points/bullets.\n"
-    "- **Lists**: Use numbered lists (1., 2.) for sequential steps.\n"
-    "- Bold control IDs: **AC-2**, **AC-2(1)**\n"
-    "- Cite inline: [p.45]\n"
-    "- Total response: MAX 200 words. Keep it concise but structured.\n"
-    "- NEVER start with 'Okay' or 'Let's break down' — go straight to content.\n"
-)
+def load_agents_config() -> Dict[str, Any]:
+    """Load agent definitions and routing keywords from JSON."""
+    try:
+        with open(AGENTS_PATH, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.error("Failed to load agents config: %s", e)
+        return {}
 
-AGENTS = {
-    "NIST_SPECIALIST": {
-        "name": "NIST Controls Specialist",
-        "prompt": (
-            "You are a Senior NIST RMF & SP 800-53 Rev.5 Consultant. "
-            "Reference Control IDs, enhancements, and RMF steps."
-            + _FORMAT_RULES +
-            "\nContext:\n{context}"
-        ),
-    },
-    "AUDIT_SPECIALIST": {
-        "name": "Audit & Assessment Specialist",
-        "prompt": (
-            "You are an Audit & Assessment Specialist (NIST SP 800-53A). "
-            "List evidence artifacts, test procedures, and remediation steps."
-            + _FORMAT_RULES +
-            "\nContext:\n{context}"
-        ),
-    },
-    "RISK_SPECIALIST": {
-        "name": "Risk & Impact Specialist",
-        "prompt": (
-            "You are a Risk & FIPS 199/200 Specialist. "
-            "Analyze CIA impact levels with concrete examples and tailoring guidance."
-            + _FORMAT_RULES +
-            "\nContext:\n{context}"
-        ),
-    },
-    "COMPLIANCE_SPECIALIST": {
-        "name": "Compliance Mapping Specialist",
-        "prompt": (
-            "You are a Compliance Mapping Specialist. "
-            "Map NIST 800-53 to FedRAMP, CMMC, ISO 27001, SOC 2, HIPAA."
-            + _FORMAT_RULES +
-            "\nContext:\n{context}"
-        ),
-    },
-    "PM_AGENT": {
-        "name": "Product Manager Agent",
-        "prompt": (
-            "You are a PM & Strategic Advisor for NIST compliance. "
-            "Frame compliance as business value, prioritize by effort-vs-impact."
-            + _FORMAT_RULES +
-            "\nContext:\n{context}"
-        ),
-    },
-    "QA_AGENT": {
-        "name": "QA & Test Strategy Specialist",
-        "prompt": (
-            "You are a QA & Test Strategy Specialist for NIST 800-53 compliance. "
-            "Design test cases, validation criteria, test coverage matrices, "
-            "and control testing methodology aligned with SP 800-53A."
-            + _FORMAT_RULES +
-            "\nContext:\n{context}"
-        ),
-    },
-    "DEVSECOPS_AGENT": {
-        "name": "DevSecOps & Pipeline Security Specialist",
-        "prompt": (
-            "You are a DevSecOps & Pipeline Security Specialist. "
-            "Advise on CI/CD hardening, SAST/DAST integration, container security, "
-            "infrastructure-as-code compliance, and shift-left security practices."
-            + _FORMAT_RULES +
-            "\nContext:\n{context}"
-        ),
-    },
-}
+AGENTS_CONFIG = load_agents_config()
 
-# Route keywords for fast classification fallback
-ROUTE_KEYWORDS = {
-    "AUDIT_SPECIALIST": ["audit", "evidence", "artifact", "assessment", "poam", "ssp", "finding", "examine", "interview"],
-    "RISK_SPECIALIST": ["risk", "impact", "fips", "threat", "vulnerability", "likelihood", "cia", "confidentiality", "integrity", "availability", "categorize"],
-    "COMPLIANCE_SPECIALIST": ["fedramp", "cmmc", "iso", "soc", "hipaa", "mapping", "crosswalk", "compliance", "inherited", "authorization boundary", "continuous monitoring"],
-    "PM_AGENT": ["roadmap", "prioritize", "priority", "stakeholder", "budget", "timeline", "phase", "milestone", "business case", "executive", "board", "quick win", "roi", "strategy", "plan"],
-    "QA_AGENT": ["test case", "test plan", "test coverage", "validation", "regression", "acceptance test", "smoke test", "test strategy", "test automation", "qa", "quality assurance", "defect", "bug report"],
-    "DEVSECOPS_AGENT": ["cicd", "ci/cd", "pipeline", "sast", "dast", "container security", "docker security", "kubernetes security", "infrastructure as code", "iac", "devsecops", "shift left", "code scanning", "dependency scanning", "supply chain"],
-}
+# Derived mappings for backward compatibility or efficient access
+AGENTS = {k: {"name": v["name"], "prompt": v["prompt"]} for k, v in AGENTS_CONFIG.items()}
+ROUTE_KEYWORDS = {k: v["keywords"] for k, v in AGENTS_CONFIG.items() if v.get("keywords")}
 
 # ---------------------------------------------------------------------
 # Orchestrator
@@ -226,6 +147,7 @@ class Orchestrator:
             agent_name=agent_config["name"],
             sources=response.get("sources", []),
             cached=False,
+            validation=response.get("validation"),
         )
 
         return response
@@ -277,8 +199,12 @@ class Orchestrator:
 
         yield "data: [DONE]\n\n"
 
-        # Log after stream completes
+        # Validate after stream completes
         full_answer = "".join(accumulated)
+        source_docs = getattr(self.rag_engine, "last_source_docs", [])
+        _, validation = validate_response(full_answer, source_docs)
+
+        # Log after stream completes
         latency_ms = int(time.time() * 1000) - start_ms
         log_interaction(
             question=question,
@@ -288,4 +214,5 @@ class Orchestrator:
             agent_id=chosen_agent,
             agent_name=agent_config["name"],
             cached=False,
+            validation=validation,
         )
