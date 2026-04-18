@@ -8,8 +8,12 @@ node_modules/
 
 # Secrets & cache
 .env
+.env.*
 .env.local
 .env.prod
+.env.test
+.env.*.local
+.env.*.private
 emb_cache/
 index_kms/
 *.faiss
@@ -49,3 +53,18 @@ rag_01.ipynb
 
 # Legacy
 rag/
+
+# Test artifacts — never commit
+.coverage
+.coverage.*
+coverage.xml
+coverage.json
+htmlcov/
+.pytest_cache/
+junit.xml
+test-results/
+test-reports/
+playwright-report/
+playwright/.cache/
+.nyc_output/
+coverage/
